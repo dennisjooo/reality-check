@@ -60,6 +60,8 @@ export function Toolbar({
 }: ToolbarProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const speedBeforeDragRef = useRef(speed);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const handleContinue = () => {
     controlBus.continue();
@@ -254,12 +256,13 @@ export function Toolbar({
           size="icon"
           onClick={toggleTheme}
           title={
-            resolvedTheme === "dark"
+            mounted && resolvedTheme === "dark"
               ? "Switch to light mode"
               : "Switch to dark mode"
           }
+          suppressHydrationWarning
         >
-          {resolvedTheme === "dark" ? (
+          {mounted && resolvedTheme === "dark" ? (
             <Sun className="size-3.5" />
           ) : (
             <Moon className="size-3.5" />
