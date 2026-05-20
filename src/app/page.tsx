@@ -111,12 +111,6 @@ function HomeContent() {
     [updateSymbol]
   );
 
-  const handleReplay = useCallback(() => {
-    setTargetMilestone(lastMilestoneRef.current);
-    setChartKey((k) => k + 1);
-    setPhase("animating");
-  }, []);
-
   const handleMilestoneChange = useCallback((milestoneIndex: number) => {
     lastMilestoneRef.current = milestoneIndex;
   }, []);
@@ -143,7 +137,6 @@ function HomeContent() {
         onChartTypeChange={updateChartType}
         onLineColorChange={updateLineColor}
         onPhaseChange={handlePhaseChange}
-        onReplay={handleReplay}
         onChartKeyBump={() => setChartKey((k) => k + 1)}
         onTargetMilestoneSet={setTargetMilestone}
       />

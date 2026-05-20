@@ -5,7 +5,6 @@ import { useTheme } from "next-themes";
 import {
   Play,
   Pause,
-  RotateCcw,
   Square,
   Sun,
   Moon,
@@ -33,7 +32,6 @@ interface ToolbarProps {
   onChartTypeChange: (type: ChartType) => void;
   onLineColorChange: (color: string) => void;
   onPhaseChange: (phase: AnimPhase) => void;
-  onReplay: () => void;
   onChartKeyBump: () => void;
   onTargetMilestoneSet: (milestone: number | undefined) => void;
 }
@@ -54,7 +52,6 @@ export function Toolbar({
   onChartTypeChange,
   onLineColorChange,
   onPhaseChange,
-  onReplay,
   onChartKeyBump,
   onTargetMilestoneSet,
 }: ToolbarProps) {
@@ -216,17 +213,6 @@ export function Toolbar({
 
         {phase !== "idle" && (
           <>
-            {(phase === "paused" || phase === "complete") && (
-              <Button
-                variant="secondary"
-                size="default"
-                onClick={onReplay}
-                title="Replay from last milestone"
-              >
-                <RotateCcw className="size-3.5" />
-                Replay
-              </Button>
-            )}
             <Button
               variant="secondary"
               size="default"
