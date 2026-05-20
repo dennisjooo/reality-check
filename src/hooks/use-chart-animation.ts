@@ -7,6 +7,30 @@ import { MILESTONES } from "@/lib/chart-constants";
 import { computeSafeRange } from "@/lib/chart-utils";
 import { ControlBus } from "@/lib/control-bus";
 
+/**
+ * Build a dynamic milestone list that scales with the total bar count.
+ * Uses the fixed MILESTONES as a base, then inserts intermediate steps
+ * between the last fixed milestone and totalBars so the final zoom-out
+ * is smooth instead of snapping.
+ */
+function buildMilestones(totalBars: number): number[] {
+  const base = MILESTONES.filter((m) => m < totalBars);
+  if (base.length === 0) return [totalBars];
+
+  const last = base[base.length - 1];
+  if (totalBars <= last) return base;
+
+  // Insert intermediate steps: multiply last by 2, 3, 4... until we reach totalBars
+  const extended = [...base];
+  let next = last * 2;
+  while (next < totalBars) {
+    extended.push(next);
+    next = Math.round(next * 1.8);
+  }
+  extended.push(totalBars);
+  return extended;
+}
+
 interface UseChartAnimationOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
   seriesRef: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>;
@@ -89,14 +113,13 @@ export function useChartAnimation({
       resumeProgress: number = 0
     ) => {
       const totalBars = quotes.length;
-      const isLastMilestone =
-        milestoneIdx >= MILESTONES.length - 1 || toBars >= totalBars;
+      const isLastMilestone = toBars >= totalBars;
 
       const fromBars =
         fromBarsOverride ??
         (milestoneIdx === 0
           ? Math.min(5, totalBars)
-          : Math.min(MILESTONES[milestoneIdx - 1], totalBars));
+          : Math.max(1, Math.min(totalBars - 1, Math.round(toBars * 0.6))));
 
       if (resumeProgress === 0) {
         chart.timeScale().setVisibleLogicalRange({
@@ -187,7 +210,7 @@ export function useChartAnimation({
           milestoneIndexRef.current = milestoneIdx + 1;
           onMilestoneChange?.(milestoneIdx + 1);
 
-          if (milestoneIdx + 1 >= MILESTONES.length || toBars >= totalBars) {
+          if (isLastMilestone) {
             onPhaseChange("complete");
           } else {
             animateToNextMilestoneRef.current(chart, quotes);
@@ -206,13 +229,14 @@ export function useChartAnimation({
 
       const totalBars = quotes.length;
       const lastBarIndex = totalBars - 1;
+      const effectiveMilestones = buildMilestones(totalBars);
       const idx = milestoneIndexRef.current;
-      if (idx >= MILESTONES.length) {
+      if (idx >= effectiveMilestones.length) {
         onPhaseChange("complete");
         return;
       }
 
-      let targetBars = MILESTONES[idx];
+      let targetBars = effectiveMilestones[idx];
 
       if (targetBars > totalBars && hasMoreDataRef.current) {
         onPhaseChange("paused");
@@ -235,7 +259,7 @@ export function useChartAnimation({
       const fromBars =
         idx === 0
           ? Math.min(5, totalBars)
-          : Math.min(MILESTONES[idx - 1], totalBars);
+          : Math.min(effectiveMilestones[idx - 1], totalBars);
       runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars, savedProgressRef.current);
     },
     [
@@ -257,13 +281,14 @@ export function useChartAnimation({
 
       const totalBars = quotes.length;
       const lastBarIndex = totalBars - 1;
+      const effectiveMilestones = buildMilestones(totalBars);
       const idx = milestoneIndexRef.current;
-      if (idx >= MILESTONES.length) {
+      if (idx >= effectiveMilestones.length) {
         onPhaseChange("complete");
         return;
       }
 
-      let targetBars = MILESTONES[idx];
+      let targetBars = effectiveMilestones[idx];
 
       if (targetBars > totalBars && hasMoreDataRef.current) {
         onPhaseChange("paused");
@@ -284,7 +309,7 @@ export function useChartAnimation({
       if (idx === 0) {
         fromBars = Math.min(5, totalBars);
       } else {
-        fromBars = Math.min(MILESTONES[idx - 1], totalBars);
+        fromBars = Math.min(effectiveMilestones[idx - 1], totalBars);
       }
 
       runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars);

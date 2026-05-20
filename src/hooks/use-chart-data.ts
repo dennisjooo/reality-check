@@ -66,6 +66,7 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
           oldestTimestampRef.current = newQuotes[0].time;
 
           if (seriesRef.current && chartRef.current) {
+            const visibleRange = chartRef.current.timeScale().getVisibleLogicalRange();
             if (chartType === "candlestick") {
               seriesRef.current.setData(
                 quotesRef.current.map((q) => ({
@@ -83,6 +84,9 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
                   value: q.close,
                 }))
               );
+            }
+            if (visibleRange) {
+              chartRef.current.timeScale().setVisibleLogicalRange(visibleRange);
             }
           }
 

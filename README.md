@@ -6,7 +6,7 @@ A financial chart replay tool that animates historical price data with progressi
 
 ## Features
 
-- **Animated chart replay** — progressive zoom-out through configurable milestones (50 → 200 → 500 → 1500 → 5000 bars)
+- **Animated chart replay** — progressive zoom-out through configurable milestones 
 - **Candlestick & line charts** — toggle between views with customizable line colors
 - **Volume histogram** — translucent volume bars below the price chart
 - **Lazy data loading** — fetches older data on demand during replay
