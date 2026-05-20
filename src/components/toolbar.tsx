@@ -1,21 +1,18 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import {
-  Play,
-  Pause,
-  Square,
-  Sun,
-  Moon,
-  Link2,
-  Check,
-} from "lucide-react";
+import { Sun, Moon } from "lucide-react";
 import { AssetSearch } from "@/components/asset-search";
 import { Button } from "@/components/ui/button";
 import type { ChartType, ChartInterval, AnimPhase } from "@/lib/chart-types";
-import { LINE_COLORS, INTERVALS } from "@/lib/chart-constants";
 import { ControlBus } from "@/lib/control-bus";
+
+import { PlaybackControls } from "@/components/playback-controls";
+import { SpeedControl } from "@/components/speed-control";
+import { IntervalControl } from "@/components/interval-control";
+import { ChartTypeControl } from "@/components/chart-type-control";
+import { ShareButton } from "@/components/share-button";
 
 interface ToolbarProps {
   symbol: string;
@@ -27,7 +24,7 @@ interface ToolbarProps {
   speedRef: React.MutableRefObject<number>;
   lastMilestoneRef: React.MutableRefObject<number>;
   controlBus: ControlBus;
-  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  searchInputRef: React.RefObject<HTMLButtonElement | null>;
   onSymbolSelect: (symbol: string) => void;
   onSpeedChange: (speed: number) => void;
   onChartTypeChange: (type: ChartType) => void;
@@ -59,24 +56,8 @@ export function Toolbar({
   onTargetMilestoneSet,
 }: ToolbarProps) {
   const { resolvedTheme, setTheme } = useTheme();
-  const speedBeforeDragRef = useRef(speed);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-
-  const handleContinue = () => {
-    controlBus.continue();
-    onPhaseChange("animating");
-  };
-
-  const handlePause = () => {
-    controlBus.pause();
-    onPhaseChange("paused");
-  };
-
-  const handleResetPlay = () => {
-    controlBus.reset();
-    onPhaseChange("animating");
-  };
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
@@ -87,224 +68,82 @@ export function Toolbar({
   }, [speed, speedRef]);
 
   return (
-    <header className="flex items-center gap-3 px-4 py-3.5 border-b border-border shrink-0 overflow-x-auto overflow-y-hidden">
-      <div className="flex items-center gap-3 shrink-0">
-        <h1 className="text-base font-heading font-semibold tracking-tight leading-none">
-          Reality Check
-        </h1>
-        <div className="w-[16rem] sm:w-[18rem] max-w-[60vw] shrink-0">
+    <div className="flex flex-col gap-4 p-4 sm:p-5 border border-border/60 rounded-xl bg-card shadow-sm w-full">
+      {/* Top Row: Primary Actions (Search & Playback) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Search */}
+        <div className="w-full sm:max-w-md shrink-0">
           <AssetSearch ref={searchInputRef} onSelect={onSymbolSelect} defaultValue={symbol} />
         </div>
-      </div>
 
-      <div className="w-px h-6 bg-border shrink-0" />
-
-      <div className="flex items-center gap-2 shrink-0">
-        <label
-          htmlFor="speed-slider"
-          className="text-sm text-muted-foreground shrink-0"
-        >
-          Speed
-        </label>
-        <input
-          id="speed-slider"
-          type="range"
-          min={2}
-          max={20}
-          step={1}
-          value={speed}
-          onChange={(e) => {
-            const newSpeed = Number(e.target.value);
-            onSpeedChange(newSpeed);
-            speedRef.current = newSpeed;
-          }}
-          onPointerDown={() => {
-            speedBeforeDragRef.current = speed;
-          }}
-          onPointerUp={() => {
-            if (
-              phase !== "animating" &&
-              lastMilestoneRef.current > 0 &&
-              speedRef.current !== speedBeforeDragRef.current
-            ) {
-              onTargetMilestoneSet(lastMilestoneRef.current);
-              onChartKeyBump();
-              onPhaseChange("animating");
-            }
-          }}
-          className="w-28 h-1.5 accent-primary cursor-pointer"
+        {/* Playback Controls */}
+        <PlaybackControls
+          phase={phase}
+          controlBus={controlBus}
+          onPhaseChange={onPhaseChange}
         />
-        <span className="text-sm text-muted-foreground tabular-nums w-8 shrink-0">
-          {speed}s
-        </span>
       </div>
 
-      <div className="w-px h-6 bg-border shrink-0" />
+      <hr className="border-border/50" />
 
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span className="text-sm text-muted-foreground shrink-0">Time</span>
-        <div className="inline-flex items-center rounded-lg bg-muted p-1 border border-border">
-          {INTERVALS.map((iv) => (
-            <button
-              key={iv.value}
-              onClick={() => onIntervalChange(iv.value)}
-              className={`h-7 px-2.5 py-1 text-xs rounded-md transition-all ${
-                interval === iv.value
-                  ? "bg-background text-foreground shadow-sm font-medium"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {iv.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Bottom Row: Settings & Utilities */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Settings Group */}
+        <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-4">
+          {/* Speed Control */}
+          <SpeedControl
+            speed={speed}
+            onSpeedChange={onSpeedChange}
+            speedRef={speedRef}
+            phase={phase}
+            lastMilestoneRef={lastMilestoneRef}
+            onTargetMilestoneSet={onTargetMilestoneSet}
+            onChartKeyBump={onChartKeyBump}
+            onPhaseChange={onPhaseChange}
+          />
 
-      <div className="w-px h-6 bg-border shrink-0" />
+          <div className="hidden sm:block w-px h-5 bg-border" />
 
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="inline-flex items-center rounded-lg bg-muted p-1 border border-border">
-          <button
-            onClick={() => onChartTypeChange("candlestick")}
-            className={`h-9 px-3.5 py-2 text-sm rounded-md transition-all ${
-              chartType === "candlestick"
-                ? "bg-background text-foreground shadow-sm font-medium"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Candles
-          </button>
-          <button
-            onClick={() => onChartTypeChange("line")}
-            className={`h-9 px-3.5 py-2 text-sm rounded-md transition-all ${
-              chartType === "line"
-                ? "bg-background text-foreground shadow-sm font-medium"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Line
-          </button>
+          {/* Interval Control */}
+          <IntervalControl
+            interval={interval}
+            onIntervalChange={onIntervalChange}
+          />
+
+          <div className="hidden sm:block w-px h-5 bg-border" />
+
+          {/* Chart Type Control */}
+          <ChartTypeControl
+            chartType={chartType}
+            onChartTypeChange={onChartTypeChange}
+            lineColor={lineColor}
+            onLineColorChange={onLineColorChange}
+          />
         </div>
 
-        {chartType === "line" && (
-          <div className="flex items-center gap-1.5 pl-1">
-            {LINE_COLORS.map((c) => (
-              <button
-                key={c.value}
-                onClick={() => onLineColorChange(c.value)}
-                title={c.name}
-                className={`w-6 h-6 rounded-full transition-all ring-2 ${
-                  lineColor === c.value
-                    ? "ring-foreground scale-110"
-                    : "ring-transparent hover:scale-105"
-                }`}
-                style={{ backgroundColor: c.value }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="w-px h-6 bg-border shrink-0" />
-
-      <div className="flex items-center gap-2 shrink-0">
-        {phase === "animating" && (
+        {/* Utilities */}
+        <div className="flex items-center justify-end gap-1.5 pt-4 border-t border-border/50 md:pt-0 md:border-none w-full md:w-auto shrink-0">
+          <ShareButton />
           <Button
-            variant="destructive"
-            size="default"
-            onClick={handlePause}
-            title="Pause"
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            title={
+              mounted && resolvedTheme === "dark"
+                ? "Switch to light mode"
+                : "Switch to dark mode"
+            }
+            suppressHydrationWarning
+            className="h-9 w-9"
           >
-            <Pause className="size-3.5" />
-            Pause
+            {mounted && resolvedTheme === "dark" ? (
+              <Sun className="size-4" />
+            ) : (
+              <Moon className="size-4" />
+            )}
           </Button>
-        )}
-
-        {(phase === "paused" || phase === "idle") && (
-          <Button
-            variant="default"
-            size="default"
-            onClick={handleContinue}
-            title={phase === "idle" ? "Start playback" : "Continue playback"}
-          >
-            <Play className="size-4" />
-            {phase === "idle" ? "Start" : "Continue"}
-          </Button>
-        )}
-
-        {phase !== "idle" && (
-          <>
-            <Button
-              variant="secondary"
-              size="default"
-              onClick={handleResetPlay}
-              title="Reset to the beginning"
-            >
-              <Square className="size-3.5" />
-              Restart
-            </Button>
-          </>
-        )}
+        </div>
       </div>
-
-      <div className="flex-1 min-w-4" />
-
-      <div className="flex items-center gap-1 shrink-0">
-        <ShareButton />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleTheme}
-          title={
-            mounted && resolvedTheme === "dark"
-              ? "Switch to light mode"
-              : "Switch to dark mode"
-          }
-          suppressHydrationWarning
-        >
-          {mounted && resolvedTheme === "dark" ? (
-            <Sun className="size-3.5" />
-          ) : (
-            <Moon className="size-3.5" />
-          )}
-        </Button>
-      </div>
-    </header>
-  );
-}
-
-function ShareButton() {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      const input = document.createElement("input");
-      input.value = window.location.href;
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand("copy");
-      document.body.removeChild(input);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleCopy}
-      title="Copy shareable link"
-    >
-      {copied ? (
-        <Check className="size-3.5 text-green-500" />
-      ) : (
-        <Link2 className="size-3.5" />
-      )}
-    </Button>
+    </div>
   );
 }
