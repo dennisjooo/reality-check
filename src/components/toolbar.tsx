@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import {
   Play,
@@ -9,6 +9,8 @@ import {
   Square,
   Sun,
   Moon,
+  Link2,
+  Check,
 } from "lucide-react";
 import { AssetSearch } from "@/components/asset-search";
 import { Button } from "@/components/ui/button";
@@ -240,8 +242,9 @@ export function Toolbar({
 
       <div className="flex-1 min-w-4" />
 
-      {/* Group 5: Theme toggle */}
-      <div className="flex items-center shrink-0">
+      {/* Group 5: Share + Theme toggle */}
+      <div className="flex items-center gap-1 shrink-0">
+        <ShareButton />
         <Button
           variant="ghost"
           size="icon"
@@ -260,5 +263,42 @@ export function Toolbar({
         </Button>
       </div>
     </header>
+  );
+}
+
+function ShareButton() {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const input = document.createElement("input");
+      input.value = window.location.href;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={handleCopy}
+      title="Copy shareable link"
+    >
+      {copied ? (
+        <Check className="size-3.5 text-green-500" />
+      ) : (
+        <Link2 className="size-3.5" />
+      )}
+    </Button>
   );
 }
