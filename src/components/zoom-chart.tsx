@@ -183,6 +183,8 @@ export function ZoomChart({
         } else {
           const series = chart.addSeries(LineSeries, {
             color: lineColor,
+            priceLineColor: lineColor,
+            crosshairMarkerBackgroundColor: lineColor,
             ...LINE_SERIES_OPTIONS,
             priceFormat,
           });
@@ -330,6 +332,8 @@ export function ZoomChart({
     } else {
       const series = chart.addSeries(LineSeries, {
         color: lineColor,
+        priceLineColor: lineColor,
+        crosshairMarkerBackgroundColor: lineColor,
         ...LINE_SERIES_OPTIONS,
         priceFormat,
       });
@@ -390,6 +394,8 @@ export function ZoomChart({
     if (chartType !== "line" || !seriesRef.current) return;
     seriesRef.current.applyOptions({
       color: lineColor,
+      priceLineColor: lineColor,
+      crosshairMarkerBackgroundColor: lineColor,
     });
   }, [chartType, lineColor]);
 
