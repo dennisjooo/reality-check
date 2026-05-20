@@ -115,8 +115,9 @@ export default function Home() {
               speedRef.current = newSpeed;
             }}
             onPointerUp={() => {
-              // Speed change triggers replay from start up to current milestone
-              if (lastMilestoneRef.current > 0) {
+              // Only replay when not actively animating — during animation,
+              // speedRef already picks up the new value in real-time
+              if (phase !== "animating" && lastMilestoneRef.current > 0) {
                 setTargetMilestone(lastMilestoneRef.current);
                 setChartKey((k) => k + 1);
                 setPhase("animating");
