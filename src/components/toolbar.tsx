@@ -56,11 +56,8 @@ export function Toolbar({
   onTargetMilestoneSet,
 }: ToolbarProps) {
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (isSettingsOpen && settingsRef.current) {
@@ -116,14 +113,14 @@ export function Toolbar({
             size="icon"
             onClick={toggleTheme}
             title={
-              mounted && resolvedTheme === "dark"
+              resolvedTheme === "dark"
                 ? "Switch to light mode"
                 : "Switch to dark mode"
             }
             suppressHydrationWarning
             className="h-9 w-9"
           >
-            {mounted && resolvedTheme === "dark" ? (
+            {resolvedTheme === "dark" ? (
               <Sun className="size-4" />
             ) : (
               <Moon className="size-4" />
@@ -188,14 +185,14 @@ export function Toolbar({
             size="icon"
             onClick={toggleTheme}
             title={
-              mounted && resolvedTheme === "dark"
+              resolvedTheme === "dark"
                 ? "Switch to light mode"
                 : "Switch to dark mode"
             }
             suppressHydrationWarning
             className="h-9 w-9"
           >
-            {mounted && resolvedTheme === "dark" ? (
+            {resolvedTheme === "dark" ? (
               <Sun className="size-4" />
             ) : (
               <Moon className="size-4" />
