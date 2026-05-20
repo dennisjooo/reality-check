@@ -11,10 +11,18 @@ import {
   type PersistedSettings,
 } from "@/lib/chart-constants";
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 function loadSettings(): PersistedSettings {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.savedAt && Date.now() - parsed.savedAt < ONE_DAY_MS) {
+        return parsed;
+      }
+      localStorage.removeItem(LS_KEY);
+    }
   } catch {}
   return {};
 }
@@ -22,7 +30,7 @@ function loadSettings(): PersistedSettings {
 function saveSettings(settings: PersistedSettings) {
   try {
     const existing = loadSettings();
-    localStorage.setItem(LS_KEY, JSON.stringify({ ...existing, ...settings }));
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...existing, ...settings, savedAt: Date.now() }));
   } catch {}
 }
 

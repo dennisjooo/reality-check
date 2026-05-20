@@ -57,4 +57,5 @@ export interface PersistedSettings {
   interval?: ChartInterval;
   fromDate?: string; // ISO date string YYYY-MM-DD
   toDate?: string; // ISO date string YYYY-MM-DD
+  savedAt?: number; // timestamp when settings were saved
 }
