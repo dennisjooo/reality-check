@@ -13,14 +13,28 @@ import { ControlBus } from "@/lib/control-bus";
  * between the last fixed milestone and totalBars so the final zoom-out
  * is smooth instead of snapping.
  */
-function buildMilestones(totalBars: number): number[] {
+function buildMilestones(totalBars: number, hasMoreData: boolean): number[] {
+  if (hasMoreData) {
+    // Keep all fixed milestones so targets beyond totalBars trigger pagination
+    const extended = [...MILESTONES];
+    const last = MILESTONES[MILESTONES.length - 1];
+    if (totalBars > last) {
+      let next = last * 2;
+      while (next < totalBars) {
+        extended.push(next);
+        next = Math.round(next * 1.8);
+      }
+      extended.push(next);
+    }
+    return extended;
+  }
+
   const base = MILESTONES.filter((m) => m < totalBars);
   if (base.length === 0) return [totalBars];
 
   const last = base[base.length - 1];
   if (totalBars <= last) return base;
 
-  // Insert intermediate steps: multiply last by 2, 3, 4... until we reach totalBars
   const extended = [...base];
   let next = last * 2;
   while (next < totalBars) {
@@ -113,7 +127,6 @@ export function useChartAnimation({
       resumeProgress: number = 0
     ) => {
       const totalBars = quotes.length;
-      const isLastMilestone = toBars >= totalBars;
 
       const fromBars =
         fromBarsOverride ??
@@ -184,7 +197,7 @@ export function useChartAnimation({
         if (progress < 1) {
           animationRef.current = requestAnimationFrame(animate);
         } else {
-          if (isLastMilestone) {
+          if (toBars >= totalBars) {
             chart.timeScale().fitContent();
             if (seriesRef.current) {
               seriesRef.current.applyOptions({
@@ -210,11 +223,7 @@ export function useChartAnimation({
           milestoneIndexRef.current = milestoneIdx + 1;
           onMilestoneChange?.(milestoneIdx + 1);
 
-          if (isLastMilestone) {
-            onPhaseChange("complete");
-          } else {
-            animateToNextMilestoneRef.current(chart, quotes);
-          }
+          animateToNextMilestoneRef.current(chart, quotes);
         }
       }
 
@@ -229,7 +238,7 @@ export function useChartAnimation({
 
       const totalBars = quotes.length;
       const lastBarIndex = totalBars - 1;
-      const effectiveMilestones = buildMilestones(totalBars);
+      const effectiveMilestones = buildMilestones(totalBars, hasMoreDataRef.current);
       const idx = milestoneIndexRef.current;
       if (idx >= effectiveMilestones.length) {
         onPhaseChange("complete");
@@ -281,7 +290,7 @@ export function useChartAnimation({
 
       const totalBars = quotes.length;
       const lastBarIndex = totalBars - 1;
-      const effectiveMilestones = buildMilestones(totalBars);
+      const effectiveMilestones = buildMilestones(totalBars, hasMoreDataRef.current);
       const idx = milestoneIndexRef.current;
       if (idx >= effectiveMilestones.length) {
         onPhaseChange("complete");
