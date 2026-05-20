@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import type { AnimPhase } from "@/lib/chart-types";
 import { useSettings, type SettingsOverrides } from "@/hooks/use-settings";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { Toolbar } from "@/components/toolbar";
 import { ZoomChart } from "@/components/zoom-chart";
+import { ChartErrorBoundary } from "@/components/chart-error-boundary";
+import { ControlBus } from "@/lib/control-bus";
 
 function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverrides {
   const overrides: SettingsOverrides = {};
@@ -73,22 +76,24 @@ function HomeContent() {
     updateSymbol,
     updateChartType,
     updateLineColor,
-    updateFromDate,
-    updateToDate,
   } = useSettings(overrides);
 
   const [chartKey, setChartKey] = useState(0);
   const [phase, setPhase] = useState<AnimPhase>("idle");
-  const continueCounterRef = useRef(0);
-  const pauseCounterRef = useRef(0);
-  const resetCounterRef = useRef(0);
+  const milestoneRef = useRef(0);
   const speedRef = useRef(speed);
-  const lastMilestoneRef = useRef(0);
-  const [targetMilestone, setTargetMilestone] = useState<number | undefined>(
-    undefined
-  );
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync URL with current settings (replace, no reload)
+  const controlBus = useMemo(() => new ControlBus(), []);
+
+  useKeyboardShortcuts({
+    controlBus,
+    phase,
+    chartType,
+    onChartTypeChange: updateChartType,
+    onFocusSearch: () => searchInputRef.current?.focus(),
+  });
+
   useEffect(() => {
     const url = buildSearchURL({
       symbol,
@@ -103,8 +108,7 @@ function HomeContent() {
   const handleSymbolSelect = useCallback(
     (newSymbol: string) => {
       updateSymbol(newSymbol);
-      lastMilestoneRef.current = 0;
-      setTargetMilestone(undefined);
+      milestoneRef.current = 0;
       setChartKey((k) => k + 1);
       setPhase("idle");
     },
@@ -112,7 +116,7 @@ function HomeContent() {
   );
 
   const handleMilestoneChange = useCallback((milestoneIndex: number) => {
-    lastMilestoneRef.current = milestoneIndex;
+    milestoneRef.current = milestoneIndex;
   }, []);
 
   const handlePhaseChange = useCallback((newPhase: AnimPhase) => {
@@ -128,37 +132,39 @@ function HomeContent() {
         lineColor={lineColor}
         phase={phase}
         speedRef={speedRef}
-        continueCounterRef={continueCounterRef}
-        pauseCounterRef={pauseCounterRef}
-        resetCounterRef={resetCounterRef}
-        lastMilestoneRef={lastMilestoneRef}
+        lastMilestoneRef={milestoneRef}
+        controlBus={controlBus}
+        searchInputRef={searchInputRef}
         onSymbolSelect={handleSymbolSelect}
         onSpeedChange={setSpeed}
         onChartTypeChange={updateChartType}
         onLineColorChange={updateLineColor}
         onPhaseChange={handlePhaseChange}
         onChartKeyBump={() => setChartKey((k) => k + 1)}
-        onTargetMilestoneSet={setTargetMilestone}
+        onTargetMilestoneSet={(m) => {
+          if (m !== undefined) {
+          }
+        }}
       />
 
       <main className="flex-1 min-h-0 overflow-hidden">
-        <ZoomChart
-          key={chartKey}
-          symbol={symbol}
-          chartType={chartType}
-          lineColor={lineColor}
-          fromDate={fromDate}
-          toDate={toDate}
-          autoplay={shouldAutoplay}
-          speedRef={speedRef}
-          continueCounterRef={continueCounterRef}
-          pauseCounterRef={pauseCounterRef}
-          resetCounterRef={resetCounterRef}
-          onPhaseChange={handlePhaseChange}
-          phase={phase}
-          targetMilestone={targetMilestone}
-          onMilestoneChange={handleMilestoneChange}
-        />
+        <ChartErrorBoundary onReset={() => setChartKey((k) => k + 1)}>
+          <ZoomChart
+            key={chartKey}
+            symbol={symbol}
+            chartType={chartType}
+            lineColor={lineColor}
+            fromDate={fromDate}
+            toDate={toDate}
+            autoplay={shouldAutoplay}
+            speedRef={speedRef}
+            controlBus={controlBus}
+            onPhaseChange={handlePhaseChange}
+            phase={phase}
+            targetMilestone={undefined}
+            onMilestoneChange={handleMilestoneChange}
+          />
+        </ChartErrorBoundary>
       </main>
     </div>
   );

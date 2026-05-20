@@ -6,40 +6,39 @@ import {
   type IChartApi,
   type CandlestickData,
   type LineData,
+  type HistogramData,
   type Time,
   ColorType,
   CandlestickSeries,
   LineSeries,
+  HistogramSeries,
 } from "lightweight-charts";
-import type { ChartData, ChartType, AnimPhase } from "@/lib/chart-types";
+import type { ChartType, AnimPhase } from "@/lib/chart-types";
 import {
   MILESTONES,
   CHUNK_YEARS,
   CANDLESTICK_COLORS,
   LINE_SERIES_OPTIONS,
+  VOLUME_COLORS,
 } from "@/lib/chart-constants";
 import { getChartTheme, getPriceFormat } from "@/lib/chart-utils";
 import { useChartData } from "@/hooks/use-chart-data";
 import { useChartAnimation } from "@/hooks/use-chart-animation";
 import { StartOverlay } from "@/components/start-overlay";
+import { ControlBus } from "@/lib/control-bus";
 
 interface ZoomChartProps {
   symbol: string;
   chartType?: ChartType;
   lineColor?: string;
-  fromDate?: string; // ISO date string YYYY-MM-DD
-  toDate?: string; // ISO date string YYYY-MM-DD
-  /** When true, auto-start animation after chart loads (skips idle overlay) */
+  fromDate?: string;
+  toDate?: string;
   autoplay?: boolean;
   speedRef: React.MutableRefObject<number>;
-  continueCounterRef: React.MutableRefObject<number>;
-  pauseCounterRef: React.MutableRefObject<number>;
-  resetCounterRef: React.MutableRefObject<number>;
+  controlBus: ControlBus;
   onPhaseChange: (phase: AnimPhase) => void;
   phase: AnimPhase;
-  /** When set, auto-play from milestone 0 up to this milestone index without pausing */
   targetMilestone?: number;
-  /** Callback to report the current milestone index so parent can track it */
   onMilestoneChange?: (milestoneIndex: number) => void;
 }
 
@@ -51,9 +50,7 @@ export function ZoomChart({
   toDate,
   autoplay = false,
   speedRef,
-  continueCounterRef,
-  pauseCounterRef,
-  resetCounterRef,
+  controlBus,
   onPhaseChange,
   phase,
   targetMilestone,
@@ -62,6 +59,7 @@ export function ZoomChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ReturnType<IChartApi["addSeries"]> | null>(null);
+  const volumeSeriesRef = useRef<ReturnType<IChartApi["addSeries"]> | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const targetMilestoneRef = useRef(targetMilestone);
   const [loading, setLoading] = useState(true);
@@ -70,7 +68,6 @@ export function ZoomChart({
   const {
     quotesRef,
     hasMoreDataRef,
-    oldestTimestampRef,
     fetchChunk,
     fetchOlderData,
     resetData,
@@ -80,35 +77,22 @@ export function ZoomChart({
     animationRef,
     animatingRef,
     milestoneIndexRef,
-    savedProgressRef,
-    lastContinueCountRef,
     applyOutlierSafeScale,
-    resumeAnimation,
-    resetPlay,
-    animateToNextMilestone,
     runAnimation,
-    pollButtonPresses,
   } = useChartAnimation({
     chartRef,
     seriesRef,
+    volumeSeriesRef,
     quotesRef,
     speedRef,
-    continueCounterRef,
-    pauseCounterRef,
-    resetCounterRef,
     hasMoreDataRef,
     onPhaseChange,
     onMilestoneChange,
     fetchOlderData,
     symbol,
+    controlBus,
   });
 
-  // Watch for play/pause/reset button presses
-  useEffect(() => {
-    return pollButtonPresses();
-  }, [pollButtonPresses]);
-
-  // Initialize chart
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -119,7 +103,6 @@ export function ZoomChart({
         setLoading(true);
         setError(null);
 
-        // Fetch initial chunk: use fromDate/toDate if provided, else last CHUNK_YEARS years
         const now = new Date();
         const period2 = toDate ? new Date(toDate + "T00:00:00Z") : now;
         const period1 = fromDate
@@ -136,7 +119,6 @@ export function ZoomChart({
 
         resetData(quotes);
 
-        // Clean up previous chart
         if (chartRef.current) {
           chartRef.current.remove();
           chartRef.current = null;
@@ -177,7 +159,6 @@ export function ZoomChart({
 
         chartRef.current = chart;
 
-        // Set initial size from container
         chart.applyOptions({
           width: container.clientWidth,
           height: container.clientHeight,
@@ -185,7 +166,6 @@ export function ZoomChart({
 
         const priceFormat = getPriceFormat(quotes);
 
-        // Add series
         if (chartType === "candlestick") {
           const series = chart.addSeries(CandlestickSeries, {
             ...CANDLESTICK_COLORS,
@@ -214,7 +194,22 @@ export function ZoomChart({
           seriesRef.current = series;
         }
 
-        // Resize observer
+        const volumeSeries = chart.addSeries(HistogramSeries, {
+          ...VOLUME_COLORS,
+          priceFormat: { type: "volume" as const },
+          priceScaleId: "volume",
+        });
+        chart.priceScale("volume").applyOptions({
+          scaleMargins: { top: 0.8, bottom: 0 },
+        });
+        const volumeData: HistogramData[] = quotes.map((q) => ({
+          time: q.time as Time,
+          value: q.volume,
+          color: q.close >= q.open ? VOLUME_COLORS.upColor : VOLUME_COLORS.downColor,
+        }));
+        volumeSeries.setData(volumeData);
+        volumeSeriesRef.current = volumeSeries;
+
         const observer = new ResizeObserver(() => {
           if (chartRef.current && containerRef.current) {
             chartRef.current.applyOptions({
@@ -226,12 +221,9 @@ export function ZoomChart({
         observer.observe(container);
         resizeObserverRef.current = observer;
 
-        // Initialize milestone and continue counts
         milestoneIndexRef.current = 0;
         targetMilestoneRef.current = targetMilestone;
-        lastContinueCountRef.current = continueCounterRef.current;
 
-        // Set initial view state — always start zoomed in at 5 bars
         const initialFromBars = Math.min(5, quotes.length);
 
         const startIdx = quotes.length - 1 - initialFromBars + 1;
@@ -244,7 +236,6 @@ export function ZoomChart({
 
         applyOutlierSafeScale(chart, quotes, startIdx, endIdx);
 
-        // If targetMilestone is set, auto-start a single smooth animation
         if (targetMilestone !== undefined && targetMilestone > 0) {
           onPhaseChange("animating");
           const replayTargetBars = Math.min(
@@ -268,9 +259,8 @@ export function ZoomChart({
             }
           }, 50);
         } else if (autoplay) {
-          // Auto-start animation when coming from a shared URL
           onPhaseChange("animating");
-          continueCounterRef.current += 1;
+          controlBus.continue();
         } else {
           onPhaseChange("idle");
         }
@@ -289,8 +279,10 @@ export function ZoomChart({
     return () => {
       cancelled = true;
       animatingRef.current = false;
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- capturing current animation frame ID at cleanup time
+      const animId = animationRef.current;
+      if (animId) {
+        cancelAnimationFrame(animId);
       }
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
@@ -301,9 +293,9 @@ export function ZoomChart({
         chartRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ref values are stable; re-init only on symbol/date changes
   }, [symbol, fetchChunk, targetMilestone, fromDate, toDate]);
 
-  // Handle chart type changes in-place (swap series without re-fetching data)
   const prevChartTypeRef = useRef(chartType);
   useEffect(() => {
     if (chartType === prevChartTypeRef.current) return;
@@ -313,7 +305,6 @@ export function ZoomChart({
     const quotes = quotesRef.current;
     if (!chart || quotes.length === 0) return;
 
-    // Remove old series
     if (seriesRef.current) {
       chart.removeSeries(seriesRef.current);
       seriesRef.current = null;
@@ -321,7 +312,6 @@ export function ZoomChart({
 
     const priceFormat = getPriceFormat(quotes);
 
-    // Add new series with existing data
     if (chartType === "candlestick") {
       const series = chart.addSeries(CandlestickSeries, {
         ...CANDLESTICK_COLORS,
@@ -351,9 +341,18 @@ export function ZoomChart({
       );
       seriesRef.current = series;
     }
+
+    if (volumeSeriesRef.current) {
+      const volumeData: HistogramData[] = quotes.map((q) => ({
+        time: q.time as Time,
+        value: q.volume,
+        color: q.close >= q.open ? VOLUME_COLORS.upColor : VOLUME_COLORS.downColor,
+      }));
+      volumeSeriesRef.current.setData(volumeData);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- quotesRef is stable
   }, [chartType, lineColor]);
 
-  // Observe theme changes and update chart colors accordingly
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const chart = chartRef.current;
@@ -387,7 +386,6 @@ export function ZoomChart({
     return () => observer.disconnect();
   }, []);
 
-  // Update line color when it changes (without swapping series)
   useEffect(() => {
     if (chartType !== "line" || !seriesRef.current) return;
     seriesRef.current.applyOptions({
@@ -415,7 +413,7 @@ export function ZoomChart({
       {phase === "idle" && !loading && !error && (
         <StartOverlay
           onStart={() => {
-            continueCounterRef.current += 1;
+            controlBus.continue();
             onPhaseChange("animating");
           }}
         />

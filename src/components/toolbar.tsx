@@ -15,6 +15,7 @@ import { AssetSearch } from "@/components/asset-search";
 import { Button } from "@/components/ui/button";
 import type { ChartType, AnimPhase } from "@/lib/chart-types";
 import { LINE_COLORS } from "@/lib/chart-constants";
+import { ControlBus } from "@/lib/control-bus";
 
 interface ToolbarProps {
   symbol: string;
@@ -23,10 +24,9 @@ interface ToolbarProps {
   lineColor: string;
   phase: AnimPhase;
   speedRef: React.MutableRefObject<number>;
-  continueCounterRef: React.MutableRefObject<number>;
-  pauseCounterRef: React.MutableRefObject<number>;
-  resetCounterRef: React.MutableRefObject<number>;
   lastMilestoneRef: React.MutableRefObject<number>;
+  controlBus: ControlBus;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
   onSymbolSelect: (symbol: string) => void;
   onSpeedChange: (speed: number) => void;
   onChartTypeChange: (type: ChartType) => void;
@@ -43,10 +43,9 @@ export function Toolbar({
   lineColor,
   phase,
   speedRef,
-  continueCounterRef,
-  pauseCounterRef,
-  resetCounterRef,
   lastMilestoneRef,
+  controlBus,
+  searchInputRef,
   onSymbolSelect,
   onSpeedChange,
   onChartTypeChange,
@@ -59,17 +58,17 @@ export function Toolbar({
   const speedBeforeDragRef = useRef(speed);
 
   const handleContinue = () => {
-    continueCounterRef.current += 1;
+    controlBus.continue();
     onPhaseChange("animating");
   };
 
   const handlePause = () => {
-    pauseCounterRef.current += 1;
+    controlBus.pause();
     onPhaseChange("paused");
   };
 
   const handleResetPlay = () => {
-    resetCounterRef.current += 1;
+    controlBus.reset();
     onPhaseChange("animating");
   };
 
@@ -77,26 +76,23 @@ export function Toolbar({
     setTheme(resolvedTheme === "dark" ? "light" : "dark");
   };
 
-  // Sync speedRef when speed prop changes
   useEffect(() => {
     speedRef.current = speed;
   }, [speed, speedRef]);
 
   return (
     <header className="flex items-center gap-3 px-4 py-3.5 border-b border-border shrink-0 overflow-x-auto overflow-y-hidden">
-      {/* Group 1: Title + Asset Search */}
       <div className="flex items-center gap-3 shrink-0">
         <h1 className="text-base font-heading font-semibold tracking-tight leading-none">
           Reality Check
         </h1>
         <div className="w-[16rem] sm:w-[18rem] max-w-[60vw] shrink-0">
-          <AssetSearch onSelect={onSymbolSelect} defaultValue={symbol} />
+          <AssetSearch ref={searchInputRef} onSelect={onSymbolSelect} defaultValue={symbol} />
         </div>
       </div>
 
       <div className="w-px h-6 bg-border shrink-0" />
 
-      {/* Group 2: Speed control */}
       <div className="flex items-center gap-2 shrink-0">
         <label
           htmlFor="speed-slider"
@@ -139,7 +135,6 @@ export function Toolbar({
 
       <div className="w-px h-6 bg-border shrink-0" />
 
-      {/* Group 3: Chart type toggle + Line color picker */}
       <div className="flex items-center gap-2 shrink-0">
         <div className="inline-flex items-center rounded-lg bg-muted p-1 border border-border">
           <button
@@ -185,7 +180,6 @@ export function Toolbar({
 
       <div className="w-px h-6 bg-border shrink-0" />
 
-      {/* Group 4: Playback Controls */}
       <div className="flex items-center gap-2 shrink-0">
         {phase === "animating" && (
           <Button
@@ -228,7 +222,6 @@ export function Toolbar({
 
       <div className="flex-1 min-w-4" />
 
-      {/* Group 5: Share + Theme toggle */}
       <div className="flex items-center gap-1 shrink-0">
         <ShareButton />
         <Button
@@ -261,7 +254,6 @@ function ShareButton() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
       const input = document.createElement("input");
       input.value = window.location.href;
       document.body.appendChild(input);

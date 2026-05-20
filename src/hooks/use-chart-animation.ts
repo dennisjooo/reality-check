@@ -5,45 +5,42 @@ import type { IChartApi } from "lightweight-charts";
 import type { ChartData, AnimPhase } from "@/lib/chart-types";
 import { MILESTONES } from "@/lib/chart-constants";
 import { computeSafeRange } from "@/lib/chart-utils";
+import { ControlBus } from "@/lib/control-bus";
 
 interface UseChartAnimationOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
   seriesRef: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>;
+  volumeSeriesRef: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>;
   quotesRef: React.MutableRefObject<ChartData[]>;
   speedRef: React.MutableRefObject<number>;
-  continueCounterRef: React.MutableRefObject<number>;
-  pauseCounterRef: React.MutableRefObject<number>;
-  resetCounterRef: React.MutableRefObject<number>;
   hasMoreDataRef: React.MutableRefObject<boolean>;
   onPhaseChange: (phase: AnimPhase) => void;
   onMilestoneChange?: (milestoneIndex: number) => void;
   fetchOlderData: (
     sym: string,
     seriesRef: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>,
-    chartRef: React.MutableRefObject<IChartApi | null>
+    chartRef: React.MutableRefObject<IChartApi | null>,
+    volumeSeriesRef?: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>
   ) => Promise<boolean>;
   symbol: string;
+  controlBus: ControlBus;
 }
 
 export function useChartAnimation({
   chartRef,
   seriesRef,
+  volumeSeriesRef,
   quotesRef,
   speedRef,
-  continueCounterRef,
-  pauseCounterRef,
-  resetCounterRef,
   hasMoreDataRef,
   onPhaseChange,
   onMilestoneChange,
   fetchOlderData,
   symbol,
+  controlBus,
 }: UseChartAnimationOptions) {
   const animationRef = useRef<number | null>(null);
   const milestoneIndexRef = useRef(0);
-  const lastContinueCountRef = useRef(0);
-  const lastPauseCountRef = useRef(0);
-  const lastResetCountRef = useRef(0);
   const animatingRef = useRef(false);
   const currentProgressRef = useRef(0);
   const savedProgressRef = useRef(0);
@@ -102,17 +99,14 @@ export function useChartAnimation({
           : Math.min(MILESTONES[milestoneIdx - 1], totalBars));
 
       if (resumeProgress === 0) {
-        // Set initial logical range (right-aligned, showing fromBars)
         chart.timeScale().setVisibleLogicalRange({
           from: lastBarIndex - fromBars + 1,
           to: lastBarIndex,
         });
 
-        // Apply initial y-axis scale matching the starting visible range
         applyOutlierSafeScale(chart, quotes, lastBarIndex - fromBars + 1, lastBarIndex);
       }
 
-      // Disable user interaction during animation
       chart.applyOptions({ handleScroll: false, handleScale: false });
 
       animatingRef.current = true;
@@ -140,13 +134,11 @@ export function useChartAnimation({
         const progress = Math.min(elapsed / durationMs, 1);
         currentProgressRef.current = progress;
 
-        // Ease-in-out cubic
         const eased =
           progress < 0.5
             ? 4 * progress * progress * progress
             : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-        // Interpolate in log space for perceptually uniform zoom
         const currentBars = Math.exp(logFrom + (logTo - logFrom) * eased);
 
         if (Math.abs(currentBars - lastRenderedBars) > 0.01) {
@@ -156,7 +148,6 @@ export function useChartAnimation({
             to: lastBarIndex,
           });
 
-          // Progressively update y-axis (throttled to every ~2% progress)
           if (Math.floor(progress * 50) > Math.floor((progress - 0.02) * 50)) {
             applyOutlierSafeScale(
               chart,
@@ -199,7 +190,6 @@ export function useChartAnimation({
           if (milestoneIdx + 1 >= MILESTONES.length || toBars >= totalBars) {
             onPhaseChange("complete");
           } else {
-            // Automatically proceed to the next milestone without pausing
             animateToNextMilestoneRef.current(chart, quotes);
           }
         }
@@ -224,10 +214,9 @@ export function useChartAnimation({
 
       let targetBars = MILESTONES[idx];
 
-      // If we need more bars than currently loaded, fetch older data first
       if (targetBars > totalBars && hasMoreDataRef.current) {
         onPhaseChange("paused");
-        fetchOlderData(symbol, seriesRef, chartRef).then((gotMore) => {
+        fetchOlderData(symbol, seriesRef, chartRef, volumeSeriesRef).then((gotMore) => {
           if (gotMore && chartRef.current) {
             resumeAnimationRef.current(chartRef.current, quotesRef.current);
           } else if (!gotMore) {
@@ -258,10 +247,9 @@ export function useChartAnimation({
       runAnimation,
       seriesRef,
       symbol,
+      volumeSeriesRef,
     ]
   );
-
-
 
   const animateToNextMilestone = useCallback(
     (chart: IChartApi, quotes: ChartData[]) => {
@@ -277,10 +265,9 @@ export function useChartAnimation({
 
       let targetBars = MILESTONES[idx];
 
-      // If we need more bars than currently loaded, fetch older data first
       if (targetBars > totalBars && hasMoreDataRef.current) {
         onPhaseChange("paused");
-        fetchOlderData(symbol, seriesRef, chartRef).then((gotMore) => {
+        fetchOlderData(symbol, seriesRef, chartRef, volumeSeriesRef).then((gotMore) => {
           if (gotMore && chartRef.current) {
             animateToNextMilestoneRef.current(chartRef.current, quotesRef.current);
           } else if (!gotMore) {
@@ -311,10 +298,10 @@ export function useChartAnimation({
       runAnimation,
       seriesRef,
       symbol,
+      volumeSeriesRef,
     ]
   );
 
-  // Keep the refs in sync
   useEffect(() => {
     animateToNextMilestoneRef.current = animateToNextMilestone;
     resumeAnimationRef.current = resumeAnimation;
@@ -344,44 +331,36 @@ export function useChartAnimation({
     [animateToNextMilestone, onMilestoneChange]
   );
 
-  // Watch for play/pause/reset button presses
-  const pollButtonPresses = useCallback(() => {
-    const interval = setInterval(() => {
-      if (continueCounterRef.current > lastContinueCountRef.current) {
-        lastContinueCountRef.current = continueCounterRef.current;
-        if (quotesRef.current.length > 0 && chartRef.current) {
-          if (savedProgressRef.current > 0 && savedProgressRef.current < 1) {
-            resumeAnimation(chartRef.current, quotesRef.current);
-          } else {
-            animateToNextMilestone(chartRef.current, quotesRef.current);
-          }
+  // Subscribe to control bus events
+  useEffect(() => {
+    const unsubContinue = controlBus.on("continue", () => {
+      if (quotesRef.current.length > 0 && chartRef.current) {
+        if (savedProgressRef.current > 0 && savedProgressRef.current < 1) {
+          resumeAnimation(chartRef.current, quotesRef.current);
+        } else {
+          animateToNextMilestone(chartRef.current, quotesRef.current);
         }
       }
-      if (pauseCounterRef.current > lastPauseCountRef.current) {
-        lastPauseCountRef.current = pauseCounterRef.current;
-        if (animatingRef.current) {
-          pauseAnimation();
-        }
+    });
+
+    const unsubPause = controlBus.on("pause", () => {
+      if (animatingRef.current) {
+        pauseAnimation();
       }
-      if (resetCounterRef.current > lastResetCountRef.current) {
-        lastResetCountRef.current = resetCounterRef.current;
-        if (quotesRef.current.length > 0 && chartRef.current) {
-          resetPlay(chartRef.current, quotesRef.current);
-        }
+    });
+
+    const unsubReset = controlBus.on("reset", () => {
+      if (quotesRef.current.length > 0 && chartRef.current) {
+        resetPlay(chartRef.current, quotesRef.current);
       }
-    }, 50);
-    return () => clearInterval(interval);
-  }, [
-    animateToNextMilestone,
-    chartRef,
-    continueCounterRef,
-    pauseCounterRef,
-    quotesRef,
-    resetCounterRef,
-    resetPlay,
-    resumeAnimation,
-    pauseAnimation,
-  ]);
+    });
+
+    return () => {
+      unsubContinue();
+      unsubPause();
+      unsubReset();
+    };
+  }, [controlBus, chartRef, quotesRef, resumeAnimation, animateToNextMilestone, pauseAnimation, resetPlay]);
 
   return {
     animationRef,
@@ -389,15 +368,11 @@ export function useChartAnimation({
     milestoneIndexRef,
     savedProgressRef,
     currentProgressRef,
-    lastContinueCountRef,
-    lastPauseCountRef,
-    lastResetCountRef,
     applyOutlierSafeScale,
     pauseAnimation,
     resumeAnimation,
     resetPlay,
     animateToNextMilestone,
     runAnimation,
-    pollButtonPresses,
   };
 }
