@@ -10,6 +10,32 @@ export function getChartTheme(isDark: boolean) {
 }
 
 /**
+ * Compute price format (precision + minMove) based on the price range.
+ * Ensures low-priced assets show enough decimal places on the y-axis.
+ */
+export function getPriceFormat(quotes: ChartData[]) {
+  if (quotes.length === 0) {
+    return { type: "price" as const, precision: 2, minMove: 0.01 };
+  }
+
+  const maxPrice = Math.max(...quotes.map((q) => q.high));
+
+  if (maxPrice < 0.001) {
+    return { type: "price" as const, precision: 6, minMove: 0.000001 };
+  }
+  if (maxPrice < 0.01) {
+    return { type: "price" as const, precision: 5, minMove: 0.00001 };
+  }
+  if (maxPrice < 0.1) {
+    return { type: "price" as const, precision: 4, minMove: 0.0001 };
+  }
+  if (maxPrice < 1) {
+    return { type: "price" as const, precision: 3, minMove: 0.001 };
+  }
+  return { type: "price" as const, precision: 2, minMove: 0.01 };
+}
+
+/**
  * Compute outlier-safe min/max for visible data using IQR fencing.
  * Returns a range that excludes extreme wicks/spikes so the y-axis
  * stays useful for the bulk of the data.

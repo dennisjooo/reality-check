@@ -18,7 +18,7 @@ import {
   CANDLESTICK_COLORS,
   LINE_SERIES_OPTIONS,
 } from "@/lib/chart-constants";
-import { getChartTheme } from "@/lib/chart-utils";
+import { getChartTheme, getPriceFormat } from "@/lib/chart-utils";
 import { useChartData } from "@/hooks/use-chart-data";
 import { useChartAnimation } from "@/hooks/use-chart-animation";
 import { StartOverlay } from "@/components/start-overlay";
@@ -183,10 +183,13 @@ export function ZoomChart({
           height: container.clientHeight,
         });
 
+        const priceFormat = getPriceFormat(quotes);
+
         // Add series
         if (chartType === "candlestick") {
           const series = chart.addSeries(CandlestickSeries, {
             ...CANDLESTICK_COLORS,
+            priceFormat,
           });
           const candleData: CandlestickData[] = quotes.map((q) => ({
             time: q.time as Time,
@@ -201,6 +204,7 @@ export function ZoomChart({
           const series = chart.addSeries(LineSeries, {
             color: lineColor,
             ...LINE_SERIES_OPTIONS,
+            priceFormat,
           });
           const lineData: LineData[] = quotes.map((q) => ({
             time: q.time as Time,
@@ -315,10 +319,13 @@ export function ZoomChart({
       seriesRef.current = null;
     }
 
+    const priceFormat = getPriceFormat(quotes);
+
     // Add new series with existing data
     if (chartType === "candlestick") {
       const series = chart.addSeries(CandlestickSeries, {
         ...CANDLESTICK_COLORS,
+        priceFormat,
       });
       series.setData(
         quotes.map((q) => ({
@@ -334,6 +341,7 @@ export function ZoomChart({
       const series = chart.addSeries(LineSeries, {
         color: lineColor,
         ...LINE_SERIES_OPTIONS,
+        priceFormat,
       });
       series.setData(
         quotes.map((q) => ({
