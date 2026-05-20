@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import type { ChartData, ChartInterval } from "@/lib/chart-types";
 import type { ChartType } from "@/lib/chart-types";
 import { CHUNK_YEARS, VOLUME_COLORS } from "@/lib/chart-constants";
@@ -15,7 +15,9 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
   const quotesRef = useRef<ChartData[]>([]);
   const hasMoreDataRef = useRef(true);
   const oldestTimestampRef = useRef<number | null>(null);
-  const [fetchingMore, setFetchingMore] = useState(false);
+  const prefetchedChunkRef = useRef<ChartData[] | null>(null);
+  const prefetchPromiseRef = useRef<Promise<ChartData[] | null> | null>(null);
+  const prefetchForOldestRef = useRef<number | null>(null);
 
   const fetchChunk = useCallback(
     async (sym: string, period1: Date, period2: Date): Promise<ChartData[]> => {
@@ -31,6 +33,49 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
     [interval]
   );
 
+  const fetchOlderChunk = useCallback(
+    async (sym: string, oldest: number): Promise<ChartData[]> => {
+      const period2 = new Date(oldest * 1000);
+      const period1 = new Date(
+        period2.getTime() - CHUNK_YEARS * 365 * 24 * 60 * 60 * 1000
+      );
+      return fetchChunk(sym, period1, period2);
+    },
+    [fetchChunk]
+  );
+
+  const prefetchOlderData = useCallback(
+    (sym: string) => {
+      if (!hasMoreDataRef.current) return;
+      const oldest = oldestTimestampRef.current;
+      if (oldest === null) return;
+
+      // Avoid duplicate prefetches for the same pagination boundary.
+      if (prefetchForOldestRef.current === oldest) return;
+
+      prefetchForOldestRef.current = oldest;
+      prefetchPromiseRef.current = fetchOlderChunk(sym, oldest)
+        .then((olderQuotes) => {
+          // Ignore stale responses from older datasets/ranges.
+          if (oldestTimestampRef.current !== oldest) return null;
+
+          if (olderQuotes.length === 0) {
+            hasMoreDataRef.current = false;
+            prefetchedChunkRef.current = null;
+            return [];
+          }
+
+          prefetchedChunkRef.current = olderQuotes;
+          return olderQuotes;
+        })
+        .catch(() => null)
+        .finally(() => {
+          prefetchPromiseRef.current = null;
+        });
+    },
+    [fetchOlderChunk]
+  );
+
   const fetchOlderData = useCallback(
     async (
       sym: string,
@@ -43,17 +88,25 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
       const oldest = oldestTimestampRef.current;
       if (oldest === null) return false;
 
-      setFetchingMore(true);
       try {
-        const period2 = new Date(oldest * 1000);
-        const period1 = new Date(
-          period2.getTime() - CHUNK_YEARS * 365 * 24 * 60 * 60 * 1000
-        );
-        const olderQuotes = await fetchChunk(sym, period1, period2);
+        let olderQuotes: ChartData[] = [];
+        if (prefetchForOldestRef.current === oldest) {
+          if (prefetchedChunkRef.current) {
+            olderQuotes = prefetchedChunkRef.current;
+          } else if (prefetchPromiseRef.current) {
+            const prefetched = await prefetchPromiseRef.current;
+            olderQuotes = prefetched ?? [];
+          }
+          prefetchedChunkRef.current = null;
+          prefetchForOldestRef.current = null;
+        }
+
+        if (olderQuotes.length === 0 && hasMoreDataRef.current) {
+          olderQuotes = await fetchOlderChunk(sym, oldest);
+        }
 
         if (olderQuotes.length === 0) {
           hasMoreDataRef.current = false;
-          setFetchingMore(false);
           return false;
         }
 
@@ -86,7 +139,11 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
               );
             }
             if (visibleRange) {
-              chartRef.current.timeScale().setVisibleLogicalRange(visibleRange);
+              const rangeShift = newQuotes.length;
+              chartRef.current.timeScale().setVisibleLogicalRange({
+                from: visibleRange.from + rangeShift,
+                to: visibleRange.to + rangeShift,
+              });
             }
           }
 
@@ -102,28 +159,33 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
           hasMoreDataRef.current = false;
         }
 
-        setFetchingMore(false);
+        if (newQuotes.length > 0) {
+          prefetchOlderData(sym);
+        }
+
         return newQuotes.length > 0;
       } catch {
-        setFetchingMore(false);
         return false;
       }
     },
-    [fetchChunk, chartType]
+    [chartType, fetchOlderChunk, prefetchOlderData]
   );
 
   const resetData = useCallback((quotes: ChartData[]) => {
     quotesRef.current = quotes;
     hasMoreDataRef.current = true;
     oldestTimestampRef.current = quotes[0]?.time ?? null;
+    prefetchedChunkRef.current = null;
+    prefetchPromiseRef.current = null;
+    prefetchForOldestRef.current = null;
   }, []);
 
   return {
     quotesRef,
     hasMoreDataRef,
     oldestTimestampRef,
-    fetchingMore,
     fetchChunk,
+    prefetchOlderData,
     fetchOlderData,
     resetData,
   };

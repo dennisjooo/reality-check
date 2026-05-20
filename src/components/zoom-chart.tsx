@@ -71,6 +71,7 @@ export function ZoomChart({
     quotesRef,
     hasMoreDataRef,
     fetchChunk,
+    prefetchOlderData,
     fetchOlderData,
     resetData,
   } = useChartData({ chartType, interval });
@@ -120,6 +121,7 @@ export function ZoomChart({
         }
 
         resetData(quotes);
+        prefetchOlderData(symbol);
 
         if (chartRef.current) {
           chartRef.current.remove();
@@ -298,7 +300,7 @@ export function ZoomChart({
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- ref values are stable; re-init only on symbol/interval/date changes
-  }, [symbol, interval, fetchChunk, targetMilestone, fromDate, toDate]);
+  }, [symbol, interval, fetchChunk, prefetchOlderData, targetMilestone, fromDate, toDate]);
 
   const prevChartTypeRef = useRef(chartType);
   useEffect(() => {

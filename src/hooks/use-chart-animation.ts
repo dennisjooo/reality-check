@@ -133,14 +133,16 @@ export function useChartAnimation({
         (milestoneIdx === 0
           ? Math.min(5, totalBars)
           : Math.max(1, Math.min(totalBars - 1, Math.round(toBars * 0.6))));
+      const fromIndex = Math.max(0, lastBarIndex - fromBars + 1);
+      const targetFromIndex = Math.max(0, lastBarIndex - toBars + 1);
 
       if (resumeProgress === 0) {
         chart.timeScale().setVisibleLogicalRange({
-          from: lastBarIndex - fromBars + 1,
+          from: fromIndex,
           to: lastBarIndex,
         });
 
-        applyOutlierSafeScale(chart, quotes, lastBarIndex - fromBars + 1, lastBarIndex);
+        applyOutlierSafeScale(chart, quotes, fromIndex, lastBarIndex);
       }
 
       chart.applyOptions({ handleScroll: false, handleScale: false });
@@ -161,7 +163,7 @@ export function useChartAnimation({
       function animate(now: number) {
         if (!animatingRef.current) return;
 
-        const durationMs = speedRef.current * 1000;
+        const durationMs = (22 - speedRef.current) * 1000;
         if (animStartTime === null) {
           animStartTime = now - resumeProgress * durationMs;
         }
@@ -246,15 +248,20 @@ export function useChartAnimation({
       }
 
       let targetBars = effectiveMilestones[idx];
+      const fromBars =
+        idx === 0
+          ? Math.min(5, totalBars)
+          : Math.min(effectiveMilestones[idx - 1], totalBars);
 
       if (targetBars > totalBars && hasMoreDataRef.current) {
-        onPhaseChange("paused");
+        // Keep UI in animating state while fetching additional history,
+        // otherwise controls briefly flip to "Continue" mid-run.
         fetchOlderData(symbol, seriesRef, chartRef, volumeSeriesRef).then((gotMore) => {
           if (gotMore && chartRef.current) {
             resumeAnimationRef.current(chartRef.current, quotesRef.current);
           } else if (!gotMore) {
             targetBars = totalBars;
-            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex, undefined, savedProgressRef.current);
+            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex, fromBars, savedProgressRef.current);
           }
         });
         return;
@@ -265,10 +272,6 @@ export function useChartAnimation({
       animatingRef.current = true;
       onPhaseChange("animating");
 
-      const fromBars =
-        idx === 0
-          ? Math.min(5, totalBars)
-          : Math.min(effectiveMilestones[idx - 1], totalBars);
       runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars, savedProgressRef.current);
     },
     [
@@ -298,28 +301,26 @@ export function useChartAnimation({
       }
 
       let targetBars = effectiveMilestones[idx];
+      const fromBars =
+        idx === 0
+          ? Math.min(5, totalBars)
+          : Math.min(effectiveMilestones[idx - 1], totalBars);
 
       if (targetBars > totalBars && hasMoreDataRef.current) {
-        onPhaseChange("paused");
+        // Keep UI in animating state while fetching additional history,
+        // otherwise controls briefly flip to "Continue" mid-run.
         fetchOlderData(symbol, seriesRef, chartRef, volumeSeriesRef).then((gotMore) => {
           if (gotMore && chartRef.current) {
             animateToNextMilestoneRef.current(chartRef.current, quotesRef.current);
           } else if (!gotMore) {
             targetBars = totalBars;
-            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex);
+            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex, fromBars);
           }
         });
         return;
       }
 
       targetBars = Math.min(targetBars, totalBars);
-
-      let fromBars: number;
-      if (idx === 0) {
-        fromBars = Math.min(5, totalBars);
-      } else {
-        fromBars = Math.min(effectiveMilestones[idx - 1], totalBars);
-      }
 
       runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars);
     },
