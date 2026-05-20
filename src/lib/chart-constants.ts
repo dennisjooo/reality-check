@@ -36,6 +36,11 @@ export const LINE_SERIES_OPTIONS = {
   lineWidth: 2,
 } as const;
 
+export const VOLUME_COLORS = {
+  upColor: "rgba(34, 197, 94, 0.45)",
+  downColor: "rgba(239, 68, 68, 0.45)",
+} as const;
+
 export interface PersistedSettings {
   symbol?: string;
   speed?: number;

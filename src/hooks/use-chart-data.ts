@@ -3,8 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import type { ChartData } from "@/lib/chart-types";
 import type { ChartType } from "@/lib/chart-types";
-import { CHUNK_YEARS } from "@/lib/chart-constants";
-import type { IChartApi, Time } from "lightweight-charts";
+import { CHUNK_YEARS, VOLUME_COLORS } from "@/lib/chart-constants";
+import type { IChartApi, Time, HistogramData } from "lightweight-charts";
 
 interface UseChartDataOptions {
   chartType: ChartType;
@@ -34,7 +34,8 @@ export function useChartData({ chartType }: UseChartDataOptions) {
     async (
       sym: string,
       seriesRef: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>,
-      chartRef: React.MutableRefObject<IChartApi | null>
+      chartRef: React.MutableRefObject<IChartApi | null>,
+      volumeSeriesRef?: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>
     ): Promise<boolean> => {
       if (!hasMoreDataRef.current) return false;
 
@@ -55,7 +56,6 @@ export function useChartData({ chartType }: UseChartDataOptions) {
           return false;
         }
 
-        // Merge: prepend older bars that don't already exist
         const existingTimes = new Set(quotesRef.current.map((q) => q.time));
         const newQuotes = olderQuotes.filter((q) => !existingTimes.has(q.time));
 
@@ -64,7 +64,6 @@ export function useChartData({ chartType }: UseChartDataOptions) {
           quotesRef.current = [...newQuotes, ...quotesRef.current];
           oldestTimestampRef.current = newQuotes[0].time;
 
-          // Update the chart series with merged data
           if (seriesRef.current && chartRef.current) {
             if (chartType === "candlestick") {
               seriesRef.current.setData(
@@ -84,6 +83,15 @@ export function useChartData({ chartType }: UseChartDataOptions) {
                 }))
               );
             }
+          }
+
+          if (volumeSeriesRef?.current) {
+            const volumeData: HistogramData[] = quotesRef.current.map((q) => ({
+              time: q.time as Time,
+              value: q.volume,
+              color: q.close >= q.open ? VOLUME_COLORS.upColor : VOLUME_COLORS.downColor,
+            }));
+            volumeSeriesRef.current.setData(volumeData);
           }
         } else {
           hasMoreDataRef.current = false;
