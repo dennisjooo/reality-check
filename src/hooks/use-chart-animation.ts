@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import type { IChartApi } from "lightweight-charts";
 import type { ChartData, AnimPhase } from "@/lib/chart-types";
 import { MILESTONES } from "@/lib/chart-constants";
@@ -47,6 +47,8 @@ export function useChartAnimation({
   const animatingRef = useRef(false);
   const currentProgressRef = useRef(0);
   const savedProgressRef = useRef(0);
+  const animateToNextMilestoneRef = useRef<(chart: IChartApi, quotes: ChartData[]) => void>(() => {});
+  const resumeAnimationRef = useRef<(chart: IChartApi, quotes: ChartData[]) => void>(() => {});
 
   const applyOutlierSafeScale = useCallback(
     (chart: IChartApi, quotes: ChartData[], fromBarIdx: number, toBarIdx: number) => {
@@ -86,7 +88,8 @@ export function useChartAnimation({
       milestoneIdx: number,
       toBars: number,
       lastBarIndex: number,
-      fromBarsOverride?: number
+      fromBarsOverride?: number,
+      resumeProgress: number = 0
     ) => {
       const totalBars = quotes.length;
       const isLastMilestone =
@@ -98,14 +101,16 @@ export function useChartAnimation({
           ? Math.min(5, totalBars)
           : Math.min(MILESTONES[milestoneIdx - 1], totalBars));
 
-      // Set initial logical range (right-aligned, showing fromBars)
-      chart.timeScale().setVisibleLogicalRange({
-        from: lastBarIndex - fromBars + 1,
-        to: lastBarIndex,
-      });
+      if (resumeProgress === 0) {
+        // Set initial logical range (right-aligned, showing fromBars)
+        chart.timeScale().setVisibleLogicalRange({
+          from: lastBarIndex - fromBars + 1,
+          to: lastBarIndex,
+        });
 
-      // Apply initial y-axis scale matching the starting visible range
-      applyOutlierSafeScale(chart, quotes, lastBarIndex - fromBars + 1, lastBarIndex);
+        // Apply initial y-axis scale matching the starting visible range
+        applyOutlierSafeScale(chart, quotes, lastBarIndex - fromBars + 1, lastBarIndex);
+      }
 
       // Disable user interaction during animation
       chart.applyOptions({ handleScroll: false, handleScale: false });
@@ -114,9 +119,11 @@ export function useChartAnimation({
       onPhaseChange("animating");
 
       savedProgressRef.current = 0;
-      currentProgressRef.current = 0;
+      if (resumeProgress === 0) {
+        currentProgressRef.current = 0;
+      }
 
-      const animStartTime = performance.now();
+      let animStartTime: number | null = null;
       const logFrom = Math.log(fromBars);
       const logTo = Math.log(toBars);
       let lastRenderedBars = -1;
@@ -124,8 +131,12 @@ export function useChartAnimation({
       function animate(now: number) {
         if (!animatingRef.current) return;
 
-        const elapsed = now - animStartTime;
         const durationMs = speedRef.current * 1000;
+        if (animStartTime === null) {
+          animStartTime = now - resumeProgress * durationMs;
+        }
+
+        const elapsed = now - animStartTime;
         const progress = Math.min(elapsed / durationMs, 1);
         currentProgressRef.current = progress;
 
@@ -218,10 +229,10 @@ export function useChartAnimation({
         onPhaseChange("paused");
         fetchOlderData(symbol, seriesRef, chartRef).then((gotMore) => {
           if (gotMore && chartRef.current) {
-            resumeAnimation(chartRef.current, quotesRef.current);
+            resumeAnimationRef.current(chartRef.current, quotesRef.current);
           } else if (!gotMore) {
             targetBars = totalBars;
-            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex);
+            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex, undefined, savedProgressRef.current);
           }
         });
         return;
@@ -236,7 +247,7 @@ export function useChartAnimation({
         idx === 0
           ? Math.min(5, totalBars)
           : Math.min(MILESTONES[idx - 1], totalBars);
-      runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars);
+      runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars, savedProgressRef.current);
     },
     [
       chartRef,
@@ -250,8 +261,7 @@ export function useChartAnimation({
     ]
   );
 
-  // Use a ref to break the circular self-reference in animateToNextMilestone
-  const animateToNextMilestoneRef = useRef<(chart: IChartApi, quotes: ChartData[]) => void>(() => {});
+
 
   const animateToNextMilestone = useCallback(
     (chart: IChartApi, quotes: ChartData[]) => {
@@ -304,8 +314,11 @@ export function useChartAnimation({
     ]
   );
 
-  // Keep the ref in sync
-  animateToNextMilestoneRef.current = animateToNextMilestone;
+  // Keep the refs in sync
+  useEffect(() => {
+    animateToNextMilestoneRef.current = animateToNextMilestone;
+    resumeAnimationRef.current = resumeAnimation;
+  }, [animateToNextMilestone, resumeAnimation]);
 
   const resetPlay = useCallback(
     (chart: IChartApi, quotes: ChartData[]) => {
