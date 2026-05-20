@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { ChartType } from "@/lib/chart-types";
+import type { ChartType, ChartInterval } from "@/lib/chart-types";
 import {
   LS_KEY,
   DEFAULT_SYMBOL,
   DEFAULT_SPEED,
   DEFAULT_LINE_COLOR,
+  DEFAULT_INTERVAL,
   type PersistedSettings,
 } from "@/lib/chart-constants";
 
@@ -29,6 +30,7 @@ export interface SettingsOverrides {
   symbol?: string;
   speed?: number;
   chartType?: ChartType;
+  interval?: ChartInterval;
   fromDate?: string;
   toDate?: string;
 }
@@ -45,6 +47,9 @@ export function useSettings(overrides?: SettingsOverrides) {
   const [chartType, setChartType] = useState<ChartType>(
     overrides?.chartType ?? saved.chartType ?? "candlestick"
   );
+  const [interval, setInterval] = useState<ChartInterval>(
+    overrides?.interval ?? saved.interval ?? DEFAULT_INTERVAL
+  );
   const [lineColor, setLineColor] = useState<string>(
     saved.lineColor ?? DEFAULT_LINE_COLOR
   );
@@ -56,8 +61,8 @@ export function useSettings(overrides?: SettingsOverrides) {
   );
 
   useEffect(() => {
-    saveSettings({ speed, chartType, lineColor, fromDate, toDate });
-  }, [speed, chartType, lineColor, fromDate, toDate]);
+    saveSettings({ speed, chartType, lineColor, interval, fromDate, toDate });
+  }, [speed, chartType, lineColor, interval, fromDate, toDate]);
 
   const updateSymbol = useCallback((newSymbol: string) => {
     setSymbol(newSymbol);
@@ -67,6 +72,11 @@ export function useSettings(overrides?: SettingsOverrides) {
   const updateChartType = useCallback((type: ChartType) => {
     setChartType(type);
     saveSettings({ chartType: type });
+  }, []);
+
+  const updateInterval = useCallback((newInterval: ChartInterval) => {
+    setInterval(newInterval);
+    saveSettings({ interval: newInterval });
   }, []);
 
   const updateLineColor = useCallback((color: string) => {
@@ -88,12 +98,14 @@ export function useSettings(overrides?: SettingsOverrides) {
     symbol,
     speed,
     chartType,
+    interval,
     lineColor,
     fromDate,
     toDate,
     setSpeed,
     updateSymbol,
     updateChartType,
+    updateInterval,
     updateLineColor,
     updateFromDate,
     updateToDate,

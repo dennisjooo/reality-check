@@ -13,7 +13,7 @@ import {
   LineSeries,
   HistogramSeries,
 } from "lightweight-charts";
-import type { ChartType, AnimPhase } from "@/lib/chart-types";
+import type { ChartType, ChartInterval, AnimPhase } from "@/lib/chart-types";
 import {
   MILESTONES,
   CHUNK_YEARS,
@@ -30,6 +30,7 @@ import { ControlBus } from "@/lib/control-bus";
 interface ZoomChartProps {
   symbol: string;
   chartType?: ChartType;
+  interval?: ChartInterval;
   lineColor?: string;
   fromDate?: string;
   toDate?: string;
@@ -45,6 +46,7 @@ interface ZoomChartProps {
 export function ZoomChart({
   symbol,
   chartType = "candlestick",
+  interval = "1d",
   lineColor = "#3b82f6",
   fromDate,
   toDate,
@@ -71,7 +73,7 @@ export function ZoomChart({
     fetchChunk,
     fetchOlderData,
     resetData,
-  } = useChartData({ chartType });
+  } = useChartData({ chartType, interval });
 
   const {
     animationRef,
@@ -295,8 +297,8 @@ export function ZoomChart({
         chartRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- ref values are stable; re-init only on symbol/date changes
-  }, [symbol, fetchChunk, targetMilestone, fromDate, toDate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ref values are stable; re-init only on symbol/interval/date changes
+  }, [symbol, interval, fetchChunk, targetMilestone, fromDate, toDate]);
 
   const prevChartTypeRef = useRef(chartType);
   useEffect(() => {

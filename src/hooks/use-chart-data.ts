@@ -1,16 +1,17 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { ChartData } from "@/lib/chart-types";
+import type { ChartData, ChartInterval } from "@/lib/chart-types";
 import type { ChartType } from "@/lib/chart-types";
 import { CHUNK_YEARS, VOLUME_COLORS } from "@/lib/chart-constants";
 import type { IChartApi, Time, HistogramData } from "lightweight-charts";
 
 interface UseChartDataOptions {
   chartType: ChartType;
+  interval: ChartInterval;
 }
 
-export function useChartData({ chartType }: UseChartDataOptions) {
+export function useChartData({ chartType, interval }: UseChartDataOptions) {
   const quotesRef = useRef<ChartData[]>([]);
   const hasMoreDataRef = useRef(true);
   const oldestTimestampRef = useRef<number | null>(null);
@@ -21,13 +22,13 @@ export function useChartData({ chartType }: UseChartDataOptions) {
       const p1 = Math.floor(period1.getTime() / 1000);
       const p2 = Math.floor(period2.getTime() / 1000);
       const res = await fetch(
-        `/api/chart?symbol=${encodeURIComponent(sym)}&period1=${p1}&period2=${p2}&interval=1d`
+        `/api/chart?symbol=${encodeURIComponent(sym)}&period1=${p1}&period2=${p2}&interval=${interval}`
       );
       if (!res.ok) throw new Error("Failed to fetch chart data");
       const data = await res.json();
       return data.quotes;
     },
-    []
+    [interval]
   );
 
   const fetchOlderData = useCallback(

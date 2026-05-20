@@ -9,4 +9,6 @@ export interface ChartData {
 
 export type ChartType = "candlestick" | "line";
 
+export type ChartInterval = "1h" | "1d" | "1wk" | "1mo";
+
 export type AnimPhase = "idle" | "animating" | "paused" | "complete";

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import type { AnimPhase } from "@/lib/chart-types";
+import type { AnimPhase, ChartInterval } from "@/lib/chart-types";
 import { useSettings, type SettingsOverrides } from "@/hooks/use-settings";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { Toolbar } from "@/components/toolbar";
@@ -25,6 +25,9 @@ function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverrides {
   const type = searchParams.get("type");
   if (type === "candlestick" || type === "line") overrides.chartType = type;
 
+  const interval = searchParams.get("interval");
+  if (interval && /^(1h|1d|1wk|1mo)$/.test(interval)) overrides.interval = interval as ChartInterval;
+
   const from = searchParams.get("from");
   if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) overrides.fromDate = from;
 
@@ -38,6 +41,7 @@ function buildSearchURL(params: {
   symbol: string;
   speed: number;
   chartType: string;
+  interval: string;
   fromDate?: string;
   toDate?: string;
 }): string {
@@ -45,6 +49,7 @@ function buildSearchURL(params: {
   sp.set("q", params.symbol);
   sp.set("speed", String(params.speed));
   sp.set("type", params.chartType);
+  sp.set("interval", params.interval);
   if (params.fromDate) sp.set("from", params.fromDate);
   if (params.toDate) sp.set("to", params.toDate);
   return `?${sp.toString()}`;
@@ -55,6 +60,7 @@ function hasOverrides(overrides: SettingsOverrides): boolean {
     overrides.symbol ||
     overrides.speed ||
     overrides.chartType ||
+    overrides.interval ||
     overrides.fromDate ||
     overrides.toDate
   );
@@ -69,12 +75,14 @@ function HomeContent() {
     symbol,
     speed,
     chartType,
+    interval,
     lineColor,
     fromDate,
     toDate,
     setSpeed,
     updateSymbol,
     updateChartType,
+    updateInterval,
     updateLineColor,
   } = useSettings(overrides);
 
@@ -99,11 +107,12 @@ function HomeContent() {
       symbol,
       speed,
       chartType,
+      interval,
       fromDate,
       toDate,
     });
     window.history.replaceState(null, "", url);
-  }, [symbol, speed, chartType, fromDate, toDate]);
+  }, [symbol, speed, chartType, interval, fromDate, toDate]);
 
   const handleSymbolSelect = useCallback(
     (newSymbol: string) => {
@@ -129,6 +138,7 @@ function HomeContent() {
         symbol={symbol}
         speed={speed}
         chartType={chartType}
+        interval={interval}
         lineColor={lineColor}
         phase={phase}
         speedRef={speedRef}
@@ -138,6 +148,7 @@ function HomeContent() {
         onSymbolSelect={handleSymbolSelect}
         onSpeedChange={setSpeed}
         onChartTypeChange={updateChartType}
+        onIntervalChange={updateInterval}
         onLineColorChange={updateLineColor}
         onPhaseChange={handlePhaseChange}
         onChartKeyBump={() => setChartKey((k) => k + 1)}
@@ -153,6 +164,7 @@ function HomeContent() {
             key={chartKey}
             symbol={symbol}
             chartType={chartType}
+            interval={interval}
             lineColor={lineColor}
             fromDate={fromDate}
             toDate={toDate}

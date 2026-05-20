@@ -13,14 +13,15 @@ import {
 } from "lucide-react";
 import { AssetSearch } from "@/components/asset-search";
 import { Button } from "@/components/ui/button";
-import type { ChartType, AnimPhase } from "@/lib/chart-types";
-import { LINE_COLORS } from "@/lib/chart-constants";
+import type { ChartType, ChartInterval, AnimPhase } from "@/lib/chart-types";
+import { LINE_COLORS, INTERVALS } from "@/lib/chart-constants";
 import { ControlBus } from "@/lib/control-bus";
 
 interface ToolbarProps {
   symbol: string;
   speed: number;
   chartType: ChartType;
+  interval: ChartInterval;
   lineColor: string;
   phase: AnimPhase;
   speedRef: React.MutableRefObject<number>;
@@ -30,6 +31,7 @@ interface ToolbarProps {
   onSymbolSelect: (symbol: string) => void;
   onSpeedChange: (speed: number) => void;
   onChartTypeChange: (type: ChartType) => void;
+  onIntervalChange: (interval: ChartInterval) => void;
   onLineColorChange: (color: string) => void;
   onPhaseChange: (phase: AnimPhase) => void;
   onChartKeyBump: () => void;
@@ -40,6 +42,7 @@ export function Toolbar({
   symbol,
   speed,
   chartType,
+  interval,
   lineColor,
   phase,
   speedRef,
@@ -49,6 +52,7 @@ export function Toolbar({
   onSymbolSelect,
   onSpeedChange,
   onChartTypeChange,
+  onIntervalChange,
   onLineColorChange,
   onPhaseChange,
   onChartKeyBump,
@@ -131,6 +135,27 @@ export function Toolbar({
         <span className="text-sm text-muted-foreground tabular-nums w-8 shrink-0">
           {speed}s
         </span>
+      </div>
+
+      <div className="w-px h-6 bg-border shrink-0" />
+
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span className="text-sm text-muted-foreground shrink-0">Time</span>
+        <div className="inline-flex items-center rounded-lg bg-muted p-1 border border-border">
+          {INTERVALS.map((iv) => (
+            <button
+              key={iv.value}
+              onClick={() => onIntervalChange(iv.value)}
+              className={`h-7 px-2.5 py-1 text-xs rounded-md transition-all ${
+                interval === iv.value
+                  ? "bg-background text-foreground shadow-sm font-medium"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {iv.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="w-px h-6 bg-border shrink-0" />

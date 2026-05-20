@@ -1,4 +1,4 @@
-import type { ChartType } from "./chart-types";
+import type { ChartType, ChartInterval } from "./chart-types";
 
 // Milestones: absolute bar counts to reveal at each pause point
 export const MILESTONES = [50, 200, 500, 1500, 5000];
@@ -9,6 +9,14 @@ export const CHUNK_YEARS = 2;
 export const DEFAULT_SYMBOL = "BTC-USD";
 export const DEFAULT_SPEED = 6;
 export const DEFAULT_LINE_COLOR = "#3b82f6";
+export const DEFAULT_INTERVAL: ChartInterval = "1d";
+
+export const INTERVALS: { value: ChartInterval; label: string }[] = [
+  { value: "1h", label: "1H" },
+  { value: "1d", label: "1D" },
+  { value: "1wk", label: "1W" },
+  { value: "1mo", label: "1M" },
+];
 
 export const LS_KEY = "reality-check-settings";
 
@@ -46,6 +54,7 @@ export interface PersistedSettings {
   speed?: number;
   chartType?: ChartType;
   lineColor?: string;
+  interval?: ChartInterval;
   fromDate?: string; // ISO date string YYYY-MM-DD
   toDate?: string; // ISO date string YYYY-MM-DD
 }

@@ -14,9 +14,6 @@ const rateLimiter = createRateLimiter({
 // --- Input Validation ---
 const VALID_SYMBOL_RE = /^[A-Za-z0-9^=.\-]{1,20}$/;
 const VALID_INTERVALS = new Set([
-  "1m",
-  "5m",
-  "15m",
   "1h",
   "1d",
   "1wk",
@@ -29,6 +26,14 @@ const KNOWN_PARAMS = new Set([
   "period2",
   "range",
 ]);
+
+// Yahoo Finance limits how far back you can fetch per interval
+const INTERVAL_MAX_DAYS: Record<string, number> = {
+  "1h": 730,
+  "1d": Infinity,
+  "1wk": Infinity,
+  "1mo": Infinity,
+};
 
 function setRateLimitHeaders(
   response: NextResponse,
@@ -119,7 +124,7 @@ export async function GET(request: NextRequest) {
     period1 = rangeToPeriod1(range);
     period2 = new Date();
   } else {
-    // Default: last 2 years
+    // Default: last 2 years (clamped by interval limits below)
     period1 = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000);
     period2 = new Date();
   }
@@ -134,11 +139,20 @@ export async function GET(request: NextRequest) {
     return res;
   }
 
+  // Clamp period1 based on Yahoo Finance interval limits
+  const maxDays = INTERVAL_MAX_DAYS[interval];
+  if (maxDays !== Infinity) {
+    const maxBack = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
+    if (period1 < maxBack) {
+      period1 = maxBack;
+    }
+  }
+
   try {
     const result = await yahooFinance.chart(symbol, {
       period1,
       period2,
-      interval: interval as "1m" | "5m" | "15m" | "1h" | "1d" | "1wk" | "1mo",
+      interval: interval as "1h" | "1d" | "1wk" | "1mo",
     });
 
     const quotes = result.quotes
@@ -159,8 +173,14 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     // Log details server-side only — never expose to client
     console.error("Chart fetch failed for symbol:", symbol, error);
+    const message = error instanceof Error ? error.message : "";
+    let userError = "Failed to fetch chart data";
+    if (message.includes("not available") || message.includes("granularity")) {
+      const days = INTERVAL_MAX_DAYS[interval];
+      userError = `${interval} data is limited to the last ${days} day${days !== 1 ? "s" : ""} by Yahoo Finance`;
+    }
     const res = NextResponse.json(
-      { error: "Failed to fetch chart data" },
+      { error: userError },
       { status: 500 }
     );
     setRateLimitHeaders(res, rateResult);
