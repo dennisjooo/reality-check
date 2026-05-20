@@ -188,7 +188,8 @@ export function useChartAnimation({
           if (milestoneIdx + 1 >= MILESTONES.length || toBars >= totalBars) {
             onPhaseChange("complete");
           } else {
-            onPhaseChange("paused");
+            // Automatically proceed to the next milestone without pausing
+            animateToNextMilestoneRef.current(chart, quotes);
           }
         }
       }
