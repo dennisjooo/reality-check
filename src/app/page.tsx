@@ -1,15 +1,37 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTheme } from "next-themes";
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Square,
+  Sun,
+  Moon,
+} from "lucide-react";
 import { AssetSearch } from "@/components/asset-search";
 import { ZoomChart } from "@/components/zoom-chart";
+import { Button } from "@/components/ui/button";
 
 type ChartType = "candlestick" | "line";
 type AnimPhase = "idle" | "animating" | "paused" | "complete";
 
 const DEFAULT_SYMBOL = "BTC-USD";
 const DEFAULT_SPEED = 6;
+const DEFAULT_LINE_COLOR = "#3b82f6";
 const LS_KEY = "reality-check-settings";
+
+const LINE_COLORS = [
+  { name: "Blue", value: "#3b82f6" },
+  { name: "Green", value: "#22c55e" },
+  { name: "Red", value: "#ef4444" },
+  { name: "Purple", value: "#a855f7" },
+  { name: "Orange", value: "#f97316" },
+  { name: "Cyan", value: "#06b6d4" },
+  { name: "Pink", value: "#ec4899" },
+  { name: "Yellow", value: "#eab308" },
+];
 
 function loadSettings() {
   try {
@@ -19,7 +41,12 @@ function loadSettings() {
   return {};
 }
 
-function saveSettings(settings: { symbol?: string; speed?: number; chartType?: ChartType }) {
+function saveSettings(settings: {
+  symbol?: string;
+  speed?: number;
+  chartType?: ChartType;
+  lineColor?: string;
+}) {
   try {
     const existing = loadSettings();
     localStorage.setItem(LS_KEY, JSON.stringify({ ...existing, ...settings }));
@@ -27,11 +54,17 @@ function saveSettings(settings: { symbol?: string; speed?: number; chartType?: C
 }
 
 export default function Home() {
+  const { resolvedTheme, setTheme } = useTheme();
   const saved = loadSettings();
   const [symbol, setSymbol] = useState(saved.symbol ?? DEFAULT_SYMBOL);
   const [chartKey, setChartKey] = useState(0);
   const [speed, setSpeed] = useState(saved.speed ?? DEFAULT_SPEED);
-  const [chartType, setChartType] = useState<ChartType>(saved.chartType ?? "candlestick");
+  const [chartType, setChartType] = useState<ChartType>(
+    saved.chartType ?? "candlestick"
+  );
+  const [lineColor, setLineColor] = useState<string>(
+    saved.lineColor ?? DEFAULT_LINE_COLOR
+  );
   const [phase, setPhase] = useState<AnimPhase>("idle");
   const continueCounterRef = useRef(0);
   const pauseCounterRef = useRef(0);
@@ -39,13 +72,15 @@ export default function Home() {
   const speedRef = useRef(speed);
   const lastMilestoneRef = useRef(0);
   /** When set > 0, chart auto-plays from milestone 0 up to this target */
-  const [targetMilestone, setTargetMilestone] = useState<number | undefined>(undefined);
+  const [targetMilestone, setTargetMilestone] = useState<number | undefined>(
+    undefined
+  );
   const speedBeforeDragRef = useRef(speed);
 
   useEffect(() => {
     speedRef.current = speed;
-    saveSettings({ speed, chartType });
-  }, [speed, chartType]);
+    saveSettings({ speed, chartType, lineColor });
+  }, [speed, chartType, lineColor]);
 
   const handleSelect = (newSymbol: string) => {
     setSymbol(newSymbol);
@@ -86,21 +121,42 @@ export default function Home() {
     setPhase(newPhase);
   }, []);
 
+  const handleChartTypeChange = (type: ChartType) => {
+    setChartType(type);
+    saveSettings({ chartType: type });
+  };
+
+  const handleLineColorChange = (color: string) => {
+    setLineColor(color);
+    saveSettings({ lineColor: color });
+  };
+
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  };
+
   return (
     <div className="flex flex-col h-dvh">
       {/* Header toolbar */}
-      <header className="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0">
-        <h1 className="text-lg font-heading font-semibold tracking-tight shrink-0">
-          Reality Check
-        </h1>
+      <header className="flex items-center gap-3 px-4 py-3.5 border-b border-border shrink-0 overflow-x-auto overflow-y-hidden">
+        {/* Group 1: Title + Asset Search */}
+        <div className="flex items-center gap-3 shrink-0">
+          <h1 className="text-base font-heading font-semibold tracking-tight leading-none">
+            Reality Check
+          </h1>
+          <div className="w-[16rem] sm:w-[18rem] max-w-[60vw] shrink-0">
+            <AssetSearch onSelect={handleSelect} defaultValue={symbol} />
+          </div>
+        </div>
 
-        <AssetSearch onSelect={handleSelect} defaultValue={symbol} />
+        <div className="w-px h-6 bg-border shrink-0" />
 
-        <div className="flex-1" />
-
-        {/* Speed control */}
-        <div className="flex items-center gap-2">
-          <label htmlFor="speed-slider" className="text-xs text-muted-foreground shrink-0">
+        {/* Group 2: Speed control */}
+        <div className="flex items-center gap-2 shrink-0">
+          <label
+            htmlFor="speed-slider"
+            className="text-sm text-muted-foreground shrink-0"
+          >
             Speed
           </label>
           <input
@@ -130,79 +186,129 @@ export default function Home() {
                 setPhase("animating");
               }
             }}
-            className="w-20 h-1 accent-primary cursor-pointer"
+            className="w-28 h-1.5 accent-primary cursor-pointer"
           />
-          <span className="text-xs text-muted-foreground tabular-nums w-7 shrink-0">{speed}s</span>
+          <span className="text-sm text-muted-foreground tabular-nums w-8 shrink-0">
+            {speed}s
+          </span>
         </div>
 
-        {/* Chart type toggle */}
-        <div className="flex gap-1">
-          <button
-            onClick={() => { setChartType("candlestick"); saveSettings({ chartType: "candlestick" }); }}
-            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-              chartType === "candlestick"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
-          >
-            Candles
-          </button>
-          <button
-            onClick={() => { setChartType("line"); saveSettings({ chartType: "line" }); }}
-            className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-              chartType === "line"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
-          >
-            Line
-          </button>
-        </div>
+        <div className="w-px h-6 bg-border shrink-0" />
 
-        {/* Playback Controls */}
-        <div className="flex items-center gap-2">
-          {phase === "animating" && (
+        {/* Group 3: Chart type toggle + Line color picker */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="inline-flex items-center rounded-lg bg-muted p-1 border border-border">
             <button
-              onClick={handlePause}
-              className="px-3 py-1.5 text-xs rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors font-medium flex items-center gap-1.5"
+              onClick={() => handleChartTypeChange("candlestick")}
+              className={`h-9 px-3.5 py-2 text-sm rounded-md transition-all ${
+                chartType === "candlestick"
+                  ? "bg-background text-foreground shadow-sm font-medium"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25Zm7.5 0A.75.75 0 0 1 15 4.5h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75V5.25Z" clipRule="evenodd" /></svg>
-              Pause
+              Candles
             </button>
+            <button
+              onClick={() => handleChartTypeChange("line")}
+              className={`h-9 px-3.5 py-2 text-sm rounded-md transition-all ${
+                chartType === "line"
+                  ? "bg-background text-foreground shadow-sm font-medium"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Line
+            </button>
+          </div>
+
+          {chartType === "line" && (
+            <div className="flex items-center gap-1.5 pl-1">
+              {LINE_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => handleLineColorChange(c.value)}
+                  title={c.name}
+                  className={`w-6 h-6 rounded-full transition-all ring-2 ${
+                    lineColor === c.value
+                      ? "ring-foreground scale-110"
+                      : "ring-transparent hover:scale-105"
+                  }`}
+                  style={{ backgroundColor: c.value }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-6 bg-border shrink-0" />
+
+        {/* Group 4: Playback Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          {phase === "animating" && (
+            <Button
+              variant="destructive"
+              size="default"
+              onClick={handlePause}
+              title="Pause"
+            >
+              <Pause className="size-3.5" />
+              Pause
+            </Button>
           )}
 
           {(phase === "paused" || phase === "idle") && (
-            <button
+            <Button
+              variant="default"
+              size="default"
               onClick={handleContinue}
-              className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium flex items-center gap-1.5"
+              title={phase === "idle" ? "Start playback" : "Continue playback"}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" /></svg>
+              <Play className="size-4" />
               {phase === "idle" ? "Start" : "Continue"}
-            </button>
+            </Button>
           )}
 
           {phase !== "idle" && (
             <>
               {(phase === "paused" || phase === "complete") && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="default"
                   onClick={handleReplay}
-                  className="px-3 py-1.5 text-xs rounded-md bg-accent text-accent-foreground hover:bg-accent/80 transition-colors font-medium flex items-center gap-1.5"
                   title="Replay from last milestone"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                  <RotateCcw className="size-3.5" />
                   Replay
-                </button>
+                </Button>
               )}
-              <button
+              <Button
+                variant="secondary"
+                size="default"
                 onClick={handleResetPlay}
-                className="px-3 py-1.5 text-xs rounded-md bg-accent text-accent-foreground hover:bg-accent/80 transition-colors font-medium flex items-center gap-1.5"
                 title="Reset to the beginning"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clipRule="evenodd" /></svg>
-                Reset
-              </button>
+                <Square className="size-3.5" />
+                Restart
+              </Button>
             </>
           )}
+        </div>
+
+        <div className="flex-1 min-w-4" />
+
+        {/* Group 5: Theme toggle */}
+        <div className="flex items-center shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {resolvedTheme === "dark" ? (
+              <Sun className="size-3.5" />
+            ) : (
+              <Moon className="size-3.5" />
+            )}
+          </Button>
         </div>
       </header>
 
@@ -212,6 +318,7 @@ export default function Home() {
           key={chartKey}
           symbol={symbol}
           chartType={chartType}
+          lineColor={lineColor}
           speedRef={speedRef}
           continueCounterRef={continueCounterRef}
           pauseCounterRef={pauseCounterRef}

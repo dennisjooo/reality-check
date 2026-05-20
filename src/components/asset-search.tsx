@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Input } from "@/components/ui/input";
 
 interface SearchResult {
@@ -25,6 +26,11 @@ export function AssetSearch({ onSelect, defaultValue }: AssetSearchProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   useEffect(() => {
     if (defaultValue) setQuery(defaultValue);
@@ -75,6 +81,17 @@ export function AssetSearch({ onSelect, defaultValue }: AssetSearchProps) {
     onSelect(result.symbol);
   };
 
+  const updateDropdownPosition = useCallback(() => {
+    const inputEl = inputRef.current;
+    if (!inputEl) return;
+    const rect = inputEl.getBoundingClientRect();
+    setDropdownStyle({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isOpen || results.length === 0) {
       if (e.key === "Enter" && query.trim()) {
@@ -123,7 +140,10 @@ export function AssetSearch({ onSelect, defaultValue }: AssetSearchProps) {
   // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const clickedContainer = containerRef.current?.contains(target);
+      const clickedDropdown = listRef.current?.contains(target);
+      if (!clickedContainer && !clickedDropdown) {
         setIsOpen(false);
       }
     }
@@ -131,8 +151,20 @@ export function AssetSearch({ onSelect, defaultValue }: AssetSearchProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateDropdownPosition();
+    window.addEventListener("resize", updateDropdownPosition);
+    window.addEventListener("scroll", updateDropdownPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateDropdownPosition);
+      window.removeEventListener("scroll", updateDropdownPosition, true);
+    };
+  }, [isOpen, updateDropdownPosition]);
+
   return (
-    <div ref={containerRef} className="relative w-full max-w-md">
+    <div ref={containerRef} className="relative w-full max-w-md overflow-visible">
       <Input
         ref={inputRef}
         type="text"
@@ -143,46 +175,54 @@ export function AssetSearch({ onSelect, defaultValue }: AssetSearchProps) {
         onFocus={() => {
           if (results.length > 0) setIsOpen(true);
         }}
-        className="w-full"
+        className="w-full focus-visible:ring-2 focus-visible:ring-inset"
         autoComplete="off"
         spellCheck={false}
       />
 
-      {isOpen && (
-        <div
-          ref={listRef}
-          className="absolute top-full left-0 right-0 z-50 mt-1 max-h-64 overflow-auto rounded-md border border-border bg-popover shadow-lg"
-        >
-          {loading && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>
-          )}
-          {!loading && results.length === 0 && (
-            <div className="px-3 py-2 text-sm text-muted-foreground">No results found</div>
-          )}
-          {results.map((result, index) => (
-            <button
-              key={result.symbol}
-              onClick={() => handleSelect(result)}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
-                index === highlightedIndex
-                  ? "bg-accent"
-                  : "hover:bg-accent"
-              }`}
-            >
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium">{result.symbol}</span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {result.name}
+      {isOpen &&
+        dropdownStyle &&
+        createPortal(
+          <div
+            ref={listRef}
+            className="fixed z-[100] max-h-64 overflow-auto rounded-md border border-border bg-popover shadow-lg"
+            style={{
+              top: dropdownStyle.top,
+              left: dropdownStyle.left,
+              width: dropdownStyle.width,
+            }}
+          >
+            {loading && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">Searching...</div>
+            )}
+            {!loading && results.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No results found</div>
+            )}
+            {results.map((result, index) => (
+              <button
+                key={result.symbol}
+                onClick={() => handleSelect(result)}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
+                  index === highlightedIndex
+                    ? "bg-accent"
+                    : "hover:bg-accent"
+                }`}
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-medium">{result.symbol}</span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {result.name}
+                  </span>
+                </div>
+                <span className="ml-auto text-xs text-muted-foreground shrink-0 rounded bg-muted px-1.5 py-0.5">
+                  {result.type}
                 </span>
-              </div>
-              <span className="ml-auto text-xs text-muted-foreground shrink-0 rounded bg-muted px-1.5 py-0.5">
-                {result.type}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

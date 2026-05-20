@@ -12,6 +12,15 @@ import {
   LineSeries,
 } from "lightweight-charts";
 
+/** Get chart color scheme based on current theme */
+function getChartTheme(isDark: boolean) {
+  return {
+    textColor: isDark ? "#9ca3af" : "#6b7280",
+    gridColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)",
+    borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+  };
+}
+
 interface ChartData {
   time: number;
   open: number;
@@ -76,6 +85,7 @@ function computeSafeRange(quotes: ChartData[], startIdx: number, endIdx: number)
 interface ZoomChartProps {
   symbol: string;
   chartType?: ChartType;
+  lineColor?: string;
   speedRef: React.MutableRefObject<number>;
   continueCounterRef: React.MutableRefObject<number>;
   pauseCounterRef: React.MutableRefObject<number>;
@@ -91,6 +101,7 @@ interface ZoomChartProps {
 export function ZoomChart({
   symbol,
   chartType = "candlestick",
+  lineColor = "#3b82f6",
   speedRef,
   continueCounterRef,
   pauseCounterRef,
@@ -259,24 +270,27 @@ export function ZoomChart({
 
         const container = containerRef.current!;
 
+        const isDark = document.documentElement.classList.contains("dark");
+        const theme = getChartTheme(isDark);
+
         const chart = createChart(container, {
           layout: {
             background: { type: ColorType.Solid, color: "transparent" },
-            textColor: "#9ca3af",
+            textColor: theme.textColor,
             fontFamily: "var(--font-inter), Inter, system-ui, sans-serif",
           },
           grid: {
-            vertLines: { color: "rgba(255,255,255,0.04)" },
-            horzLines: { color: "rgba(255,255,255,0.04)" },
+            vertLines: { color: theme.gridColor },
+            horzLines: { color: theme.gridColor },
           },
           crosshair: {
             mode: 0,
           },
           rightPriceScale: {
-            borderColor: "rgba(255,255,255,0.1)",
+            borderColor: theme.borderColor,
           },
           timeScale: {
-            borderColor: "rgba(255,255,255,0.1)",
+            borderColor: theme.borderColor,
             timeVisible: true,
             secondsVisible: false,
             minBarSpacing: 0.01,
@@ -312,7 +326,7 @@ export function ZoomChart({
           seriesRef.current = series;
         } else {
           const series = chart.addSeries(LineSeries, {
-            color: "#3b82f6",
+            color: lineColor,
             lineWidth: 2,
           });
           const lineData: LineData[] = quotes.map((q) => ({
@@ -445,7 +459,7 @@ export function ZoomChart({
       seriesRef.current = series;
     } else {
       const series = chart.addSeries(LineSeries, {
-        color: "#3b82f6",
+        color: lineColor,
         lineWidth: 2,
       });
       series.setData(
@@ -456,7 +470,49 @@ export function ZoomChart({
       );
       seriesRef.current = series;
     }
-  }, [chartType]);
+  }, [chartType, lineColor]);
+
+  // Observe theme changes and update chart colors accordingly
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const chart = chartRef.current;
+      if (!chart) return;
+
+      const isDark = document.documentElement.classList.contains("dark");
+      const theme = getChartTheme(isDark);
+
+      chart.applyOptions({
+        layout: {
+          textColor: theme.textColor,
+        },
+        grid: {
+          vertLines: { color: theme.gridColor },
+          horzLines: { color: theme.gridColor },
+        },
+        rightPriceScale: {
+          borderColor: theme.borderColor,
+        },
+        timeScale: {
+          borderColor: theme.borderColor,
+        },
+      });
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Update line color when it changes (without swapping series)
+  useEffect(() => {
+    if (chartType !== "line" || !seriesRef.current) return;
+    (seriesRef.current as ReturnType<IChartApi['addSeries']>).applyOptions({
+      color: lineColor,
+    });
+  }, [chartType, lineColor]);
 
   function applyOutlierSafeScale(chart: IChartApi, quotes: ChartData[], fromBarIdx: number, toBarIdx: number) {
     const range = computeSafeRange(quotes, Math.max(0, fromBarIdx), Math.min(quotes.length - 1, toBarIdx));
@@ -709,7 +765,7 @@ export function ZoomChart({
               continueCounterRef.current += 1;
               onPhaseChange("animating");
             }}
-            className="flex flex-col items-center gap-4 px-8 py-6 rounded-2xl bg-background/80 border border-white/10 backdrop-blur-md shadow-2xl hover:bg-background/90 hover:scale-105 transition-all duration-300 group"
+            className="flex flex-col items-center gap-4 px-8 py-6 rounded-2xl bg-background/80 border border-border backdrop-blur-md shadow-2xl hover:bg-background/90 hover:scale-105 transition-all duration-300 group"
           >
             <div className="h-16 w-16 flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg group-hover:bg-primary/90 transition-colors">
               <svg
