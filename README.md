@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Reality Check
+
+Zoom out. See the bigger picture.
+
+A financial chart replay tool that animates historical price data with progressive zoom-out milestones. Load any stock, crypto, or ETF and watch its history unfold from recent candles to the full picture.
+
+## Features
+
+- **Animated chart replay** — progressive zoom-out through configurable milestones (50 → 200 → 500 → 1500 → 5000 bars)
+- **Candlestick & line charts** — toggle between views with customizable line colors
+- **Volume histogram** — translucent volume bars below the price chart
+- **Lazy data loading** — fetches older data on demand during replay
+- **Shareable URLs** — encode symbol, speed, chart type, and date range in the URL
+- **Dark mode** — theme-aware chart colors
+- **Keyboard shortcuts** — full control without touching the mouse
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Space` | Play / Pause |
+| `R` | Restart from beginning |
+| `/` | Focus search |
+| `1` | Candlestick mode |
+| `2` | Line mode |
+
+## Tech Stack
+
+- **Next.js 16** (App Router)
+- **React 19**
+- **TypeScript**
+- **Tailwind CSS v4**
+- **lightweight-charts** (TradingView)
+- **yahoo-finance2** for market data
+
+## Architecture
+
+```
+src/
+├── app/
+│   ├── layout.tsx          # Root layout, fonts, theme provider
+│   ├── page.tsx            # Main page, state orchestration
+│   └── api/
+│       ├── chart/route.ts  # Yahoo Finance chart data proxy
+│       └── search/route.ts # Asset search proxy
+├── components/
+│   ├── toolbar.tsx          # Controls: search, speed, type, playback
+│   ├── zoom-chart.tsx       # Chart initialization + rendering
+│   ├── asset-search.tsx     # Debounced search with dropdown
+│   ├── start-overlay.tsx    # Idle state CTA
+│   ├── chart-error-boundary.tsx  # Crash recovery
+│   └── ui/                  # shadcn/ui primitives
+├── hooks/
+│   ├── use-settings.ts      # localStorage + URL settings
+│   ├── use-chart-data.ts    # Paginated data fetching
+│   ├── use-chart-animation.ts # requestAnimationFrame replay engine
+│   └── use-keyboard-shortcuts.ts # Global key bindings
+└── lib/
+    ├── control-bus.ts       # Event-driven playback control
+    ├── chart-types.ts       # Shared type definitions
+    ├── chart-constants.ts   # Milestones, colors, defaults
+    ├── chart-utils.ts       # Theme, price format, outlier detection
+    ├── rate-limit.ts        # In-memory sliding window limiter
+    └── utils.ts             # cn() class merger
+```
+
+### Data Flow
+
+1. User selects a symbol → `AssetSearch` calls `/api/search`
+2. `ZoomChart` fetches initial 2-year chunk via `/api/chart`
+3. Chart renders with `lightweight-charts` (price + volume series)
+4. On play, `useChartAnimation` drives `requestAnimationFrame` loop:
+   - Interpolates visible bar count in log space (perceptually uniform zoom)
+   - Applies outlier-safe y-axis scaling (IQR fencing)
+   - Fetches older data when milestones exceed loaded range
+5. `ControlBus` (EventTarget) handles play/pause/reset events — no polling
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Shareable URLs
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Append query params to share a specific view:
 
-## Learn More
+- `?q=AAPL` — symbol
+- `?speed=10` — animation speed (2-20 seconds)
+- `?type=line` — chart type (`candlestick` or `line`)
+- `?from=2020-01-01&to=2024-12-31` — date range
 
-To learn more about Next.js, take a look at the following resources:
+Example: `/?q=BTC-USD&speed=8&type=candlestick`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Security
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **CSP headers** restrict all connections to same-origin (`connect-src 'self'`)
+- **Rate limiting** (30 req/min per IP) on both API routes
+- **Input validation** on all query params (symbol regex, interval whitelist, date parsing)
+- **No sensitive data** exposed to client; server errors logged only
 
-## Deploy on Vercel
+## Rate Limits
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+API routes use an in-memory sliding window limiter (30 requests per 60 seconds per IP). For multi-instance deployments, replace with a Redis-backed implementation (see `src/lib/rate-limit.ts`).
