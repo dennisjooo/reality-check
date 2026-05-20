@@ -40,6 +40,7 @@ export default function Home() {
   const lastMilestoneRef = useRef(0);
   /** When set > 0, chart auto-plays from milestone 0 up to this target */
   const [targetMilestone, setTargetMilestone] = useState<number | undefined>(undefined);
+  const speedBeforeDragRef = useRef(speed);
 
   useEffect(() => {
     speedRef.current = speed;
@@ -114,10 +115,16 @@ export default function Home() {
               setSpeed(newSpeed);
               speedRef.current = newSpeed;
             }}
+            onPointerDown={() => {
+              speedBeforeDragRef.current = speed;
+            }}
             onPointerUp={() => {
-              // Only replay when not actively animating — during animation,
-              // speedRef already picks up the new value in real-time
-              if (phase !== "animating" && lastMilestoneRef.current > 0) {
+              // Only replay when not animating and speed actually changed
+              if (
+                phase !== "animating" &&
+                lastMilestoneRef.current > 0 &&
+                speedRef.current !== speedBeforeDragRef.current
+              ) {
                 setTargetMilestone(lastMilestoneRef.current);
                 setChartKey((k) => k + 1);
                 setPhase("animating");
