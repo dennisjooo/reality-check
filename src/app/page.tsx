@@ -141,7 +141,7 @@ function HomeContent() {
         </div>
 
         <main className="w-full flex-1 flex flex-col gap-4 min-h-0">
-          <div className="w-full flex-1 min-h-[300px] border border-border/60 rounded-2xl shadow-sm overflow-hidden bg-card/50 relative">
+          <div className="w-full flex-1 flex flex-col min-h-[400px] md:min-h-[300px] border border-border/60 rounded-2xl shadow-sm overflow-hidden bg-card/50 relative">
             <ChartErrorBoundary onReset={() => setChartKey((k) => k + 1)}>
               <ZoomChart
                 key={chartKey}

@@ -27,7 +27,7 @@ export function SpeedControl({
   const speedBeforeDragRef = useRef(speed);
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between md:justify-start gap-3 w-full md:w-auto">
       <label
         htmlFor="speed-slider"
         className="text-sm font-medium text-muted-foreground whitespace-nowrap"
