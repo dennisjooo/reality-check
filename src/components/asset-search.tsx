@@ -10,6 +10,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandShortcut,
   Command,
 } from "@/components/ui/command";
 
@@ -112,7 +113,7 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
               value={query}
               onValueChange={handleInputChange}
             />
-            <CommandList>
+            <CommandList className="mt-2">
               {loading && <CommandEmpty>Searching...</CommandEmpty>}
               {!loading && results.length === 0 && query && (
                 <CommandEmpty>No results found.</CommandEmpty>
@@ -124,17 +125,17 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
                       key={result.symbol}
                       value={result.symbol}
                       onSelect={() => handleSelect(result)}
-                      className="flex items-center gap-3 px-3 py-2 cursor-pointer"
+                      className="flex w-full items-center gap-3 px-3 py-2 cursor-pointer"
                     >
-                      <div className="flex flex-col min-w-0">
+                      <div className="flex min-w-0 flex-1 flex-col">
                         <span className="text-sm font-medium">{result.symbol}</span>
                         <span className="text-xs text-muted-foreground truncate">
                           {result.name}
                         </span>
                       </div>
-                      <span className="ml-auto text-xs text-muted-foreground shrink-0 rounded bg-muted px-1.5 py-0.5">
+                      <CommandShortcut className="shrink-0 rounded bg-muted px-1.5 py-0.5 tracking-normal">
                         {result.type}
-                      </span>
+                      </CommandShortcut>
                     </CommandItem>
                   ))}
                 </CommandGroup>
