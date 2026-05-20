@@ -36,9 +36,16 @@ export function getPriceFormat(quotes: ChartData[]) {
 }
 
 /**
- * Compute outlier-safe min/max for visible data using IQR fencing.
- * Returns a range that excludes extreme wicks/spikes so the y-axis
- * stays useful for the bulk of the data.
+ * Compute outlier-safe min/max for visible data.
+ *
+ * Uses a bar-range spike filter instead of IQR fencing. The IQR approach
+ * clips legitimate trending data (e.g. a stock dropping 300→60) because
+ * the extreme quartiles diverge.  Instead, we:
+ *   1. Compute the median single-bar range (high−low).
+ *   2. Only trim bars whose individual range exceeds 3× the median
+ *      (true flash-crash wicks / data anomalies).
+ *   3. Otherwise use the full data min/max so genuine trends are visible.
+ *   4. Add adaptive padding (more padding for wider ranges).
  */
 export function computeSafeRange(
   quotes: ChartData[],
@@ -48,36 +55,51 @@ export function computeSafeRange(
   const slice = quotes.slice(startIdx, endIdx + 1);
   if (slice.length === 0) return null;
 
-  // Collect all price extremes
-  const lows = slice.map((q) => q.low).sort((a, b) => a - b);
-  const highs = slice.map((q) => q.high).sort((a, b) => a - b);
+  // For very few bars, just use raw min/max — no outlier logic needed
+  if (slice.length <= 5) {
+    const dataMin = Math.min(...slice.map((q) => q.low));
+    const dataMax = Math.max(...slice.map((q) => q.high));
+    const range = dataMax - dataMin || dataMax * 0.01 || 1;
+    const padding = range * 0.08;
+    return { min: dataMin - padding, max: dataMax + padding };
+  }
 
-  const q1 = (arr: number[]) => arr[Math.floor(arr.length * 0.25)];
-  const q3 = (arr: number[]) => arr[Math.floor(arr.length * 0.75)];
+  // Compute per-bar ranges and find the median
+  const barRanges = slice.map((q) => q.high - q.low).sort((a, b) => a - b);
+  const medianRange = barRanges[Math.floor(barRanges.length / 2)];
 
-  const lowQ1 = q1(lows);
-  const lowQ3 = q3(lows);
-  const highQ1 = q1(highs);
-  const highQ3 = q3(highs);
+  // Threshold: bars with a range > 3× the median range are "spike" bars
+  const spikeThreshold = medianRange * 3;
 
-  const lowIQR = lowQ3 - lowQ1;
-  const highIQR = highQ3 - highQ1;
+  let safeLow = Infinity;
+  let safeHigh = -Infinity;
 
-  // Use 2.5× IQR fence (wider than the classic 1.5× to avoid over-clipping)
-  const safeLow = lowQ1 - 2.5 * lowIQR;
-  const safeHigh = highQ3 + 2.5 * highIQR;
+  for (const q of slice) {
+    const range = q.high - q.low;
+    if (range > spikeThreshold && medianRange > 0) {
+      // For spike bars, use close ± medianRange to dampen extremes
+      safeLow = Math.min(safeLow, q.close - medianRange);
+      safeHigh = Math.max(safeHigh, q.close + medianRange);
+    } else {
+      safeLow = Math.min(safeLow, q.low);
+      safeHigh = Math.max(safeHigh, q.high);
+    }
+  }
 
-  // Actual data min/max (to never expand beyond real data)
-  const dataMin = lows[0];
-  const dataMax = highs[highs.length - 1];
+  // Never exceed actual data bounds
+  const dataMin = Math.min(...slice.map((q) => q.low));
+  const dataMax = Math.max(...slice.map((q) => q.high));
+  safeLow = Math.max(safeLow, dataMin);
+  safeHigh = Math.min(safeHigh, dataMax);
 
-  // Add 5% padding
-  const clampedLow = Math.max(safeLow, dataMin);
-  const clampedHigh = Math.min(safeHigh, dataMax);
-  const padding = (clampedHigh - clampedLow) * 0.05;
+  // Adaptive padding: 8% for wide ranges, 5% for tight ones
+  const totalRange = safeHigh - safeLow || safeHigh * 0.01 || 1;
+  const ratio = totalRange / (dataMax || 1);
+  const paddingPct = ratio > 0.5 ? 0.08 : 0.05;
+  const padding = totalRange * paddingPct;
 
   return {
-    min: clampedLow - padding,
-    max: clampedHigh + padding,
+    min: safeLow - padding,
+    max: safeHigh + padding,
   };
 }

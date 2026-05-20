@@ -186,7 +186,7 @@ export function useChartAnimation({
             to: lastBarIndex,
           });
 
-          if (Math.floor(progress * 50) > Math.floor((progress - 0.02) * 50)) {
+          if (Math.floor(progress * 100) > Math.floor((progress - 0.01) * 100)) {
             applyOutlierSafeScale(
               chart,
               quotes,
@@ -201,11 +201,6 @@ export function useChartAnimation({
         } else {
           if (toBars >= totalBars) {
             chart.timeScale().fitContent();
-            if (seriesRef.current) {
-              seriesRef.current.applyOptions({
-                autoscaleInfoProvider: undefined,
-              });
-            }
           } else {
             chart.timeScale().setVisibleLogicalRange({
               from: lastBarIndex - toBars + 1,
@@ -217,6 +212,13 @@ export function useChartAnimation({
               lastBarIndex - toBars + 1,
               lastBarIndex
             );
+          }
+
+          // Always clear custom autoscale so native scaling takes over
+          if (seriesRef.current) {
+            seriesRef.current.applyOptions({
+              autoscaleInfoProvider: undefined,
+            });
           }
 
           animatingRef.current = false;
