@@ -47,9 +47,20 @@ function buildSearchURL(params: {
   return `?${sp.toString()}`;
 }
 
+function hasOverrides(overrides: SettingsOverrides): boolean {
+  return !!(
+    overrides.symbol ||
+    overrides.speed ||
+    overrides.chartType ||
+    overrides.fromDate ||
+    overrides.toDate
+  );
+}
+
 function HomeContent() {
   const searchParams = useSearchParams();
   const overrides = parseUrlOverrides(searchParams);
+  const shouldAutoplay = hasOverrides(overrides);
 
   const {
     symbol,
@@ -145,6 +156,7 @@ function HomeContent() {
           lineColor={lineColor}
           fromDate={fromDate}
           toDate={toDate}
+          autoplay={shouldAutoplay}
           speedRef={speedRef}
           continueCounterRef={continueCounterRef}
           pauseCounterRef={pauseCounterRef}

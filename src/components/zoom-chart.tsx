@@ -29,6 +29,8 @@ interface ZoomChartProps {
   lineColor?: string;
   fromDate?: string; // ISO date string YYYY-MM-DD
   toDate?: string; // ISO date string YYYY-MM-DD
+  /** When true, auto-start animation after chart loads (skips idle overlay) */
+  autoplay?: boolean;
   speedRef: React.MutableRefObject<number>;
   continueCounterRef: React.MutableRefObject<number>;
   pauseCounterRef: React.MutableRefObject<number>;
@@ -47,6 +49,7 @@ export function ZoomChart({
   lineColor = "#3b82f6",
   fromDate,
   toDate,
+  autoplay = false,
   speedRef,
   continueCounterRef,
   pauseCounterRef,
@@ -260,6 +263,10 @@ export function ZoomChart({
               );
             }
           }, 50);
+        } else if (autoplay) {
+          // Auto-start animation when coming from a shared URL
+          onPhaseChange("animating");
+          continueCounterRef.current += 1;
         } else {
           onPhaseChange("idle");
         }
