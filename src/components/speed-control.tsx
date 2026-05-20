@@ -38,8 +38,8 @@ export function SpeedControl({
         <input
           id="speed-slider"
           type="range"
-          min={2}
-          max={20}
+          min={1}
+          max={10}
           step={1}
           value={speed}
           onChange={(e) => {
@@ -64,7 +64,7 @@ export function SpeedControl({
           className="w-24 sm:w-32 h-1.5 accent-primary cursor-pointer"
         />
         <span className="text-sm text-muted-foreground tabular-nums w-6">
-          {speed}s
+          {speed}x
         </span>
       </div>
     </div>

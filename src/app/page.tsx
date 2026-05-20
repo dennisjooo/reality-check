@@ -20,7 +20,7 @@ function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverrides {
   const speed = searchParams.get("speed");
   if (speed) {
     const n = Number(speed);
-    if (!isNaN(n) && n >= 2 && n <= 20) overrides.speed = n;
+    if (!isNaN(n) && n >= 1 && n <= 10) overrides.speed = n;
   }
 
   const type = searchParams.get("type");

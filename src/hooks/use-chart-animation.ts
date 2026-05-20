@@ -163,7 +163,7 @@ export function useChartAnimation({
       function animate(now: number) {
         if (!animatingRef.current) return;
 
-        const durationMs = (22 - speedRef.current) * 1000;
+        const durationMs = (11 - speedRef.current) * 1000;
         if (animStartTime === null) {
           animStartTime = now - resumeProgress * durationMs;
         }
