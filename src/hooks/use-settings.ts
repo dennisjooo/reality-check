@@ -25,20 +25,39 @@ function saveSettings(settings: PersistedSettings) {
   } catch {}
 }
 
-export function useSettings() {
+export interface SettingsOverrides {
+  symbol?: string;
+  speed?: number;
+  chartType?: ChartType;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export function useSettings(overrides?: SettingsOverrides) {
   const saved = loadSettings();
-  const [symbol, setSymbol] = useState(saved.symbol ?? DEFAULT_SYMBOL);
-  const [speed, setSpeed] = useState(saved.speed ?? DEFAULT_SPEED);
+
+  const [symbol, setSymbol] = useState(
+    overrides?.symbol ?? saved.symbol ?? DEFAULT_SYMBOL
+  );
+  const [speed, setSpeed] = useState(
+    overrides?.speed ?? saved.speed ?? DEFAULT_SPEED
+  );
   const [chartType, setChartType] = useState<ChartType>(
-    saved.chartType ?? "candlestick"
+    overrides?.chartType ?? saved.chartType ?? "candlestick"
   );
   const [lineColor, setLineColor] = useState<string>(
     saved.lineColor ?? DEFAULT_LINE_COLOR
   );
+  const [fromDate, setFromDate] = useState<string | undefined>(
+    overrides?.fromDate ?? saved.fromDate
+  );
+  const [toDate, setToDate] = useState<string | undefined>(
+    overrides?.toDate ?? saved.toDate
+  );
 
   useEffect(() => {
-    saveSettings({ speed, chartType, lineColor });
-  }, [speed, chartType, lineColor]);
+    saveSettings({ speed, chartType, lineColor, fromDate, toDate });
+  }, [speed, chartType, lineColor, fromDate, toDate]);
 
   const updateSymbol = useCallback((newSymbol: string) => {
     setSymbol(newSymbol);
@@ -55,14 +74,28 @@ export function useSettings() {
     saveSettings({ lineColor: color });
   }, []);
 
+  const updateFromDate = useCallback((date: string | undefined) => {
+    setFromDate(date);
+    saveSettings({ fromDate: date });
+  }, []);
+
+  const updateToDate = useCallback((date: string | undefined) => {
+    setToDate(date);
+    saveSettings({ toDate: date });
+  }, []);
+
   return {
     symbol,
     speed,
     chartType,
     lineColor,
+    fromDate,
+    toDate,
     setSpeed,
     updateSymbol,
     updateChartType,
     updateLineColor,
+    updateFromDate,
+    updateToDate,
   };
 }

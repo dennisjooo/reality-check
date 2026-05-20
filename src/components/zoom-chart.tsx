@@ -27,6 +27,8 @@ interface ZoomChartProps {
   symbol: string;
   chartType?: ChartType;
   lineColor?: string;
+  fromDate?: string; // ISO date string YYYY-MM-DD
+  toDate?: string; // ISO date string YYYY-MM-DD
   speedRef: React.MutableRefObject<number>;
   continueCounterRef: React.MutableRefObject<number>;
   pauseCounterRef: React.MutableRefObject<number>;
@@ -43,6 +45,8 @@ export function ZoomChart({
   symbol,
   chartType = "candlestick",
   lineColor = "#3b82f6",
+  fromDate,
+  toDate,
   speedRef,
   continueCounterRef,
   pauseCounterRef,
@@ -112,12 +116,13 @@ export function ZoomChart({
         setLoading(true);
         setError(null);
 
-        // Fetch initial chunk: last CHUNK_YEARS years
+        // Fetch initial chunk: use fromDate/toDate if provided, else last CHUNK_YEARS years
         const now = new Date();
-        const period1 = new Date(
-          now.getTime() - CHUNK_YEARS * 365 * 24 * 60 * 60 * 1000
-        );
-        const quotes = await fetchChunk(symbol, period1, now);
+        const period2 = toDate ? new Date(toDate + "T00:00:00Z") : now;
+        const period1 = fromDate
+          ? new Date(fromDate + "T00:00:00Z")
+          : new Date(period2.getTime() - CHUNK_YEARS * 365 * 24 * 60 * 60 * 1000);
+        const quotes = await fetchChunk(symbol, period1, period2);
         if (cancelled) return;
 
         if (quotes.length === 0) {
@@ -285,7 +290,7 @@ export function ZoomChart({
         chartRef.current = null;
       }
     };
-  }, [symbol, fetchChunk, targetMilestone]);
+  }, [symbol, fetchChunk, targetMilestone, fromDate, toDate]);
 
   // Handle chart type changes in-place (swap series without re-fetching data)
   const prevChartTypeRef = useRef(chartType);

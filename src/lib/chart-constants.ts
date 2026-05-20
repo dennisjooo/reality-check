@@ -41,4 +41,6 @@ export interface PersistedSettings {
   speed?: number;
   chartType?: ChartType;
   lineColor?: string;
+  fromDate?: string; // ISO date string YYYY-MM-DD
+  toDate?: string; // ISO date string YYYY-MM-DD
 }

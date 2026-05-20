@@ -1,22 +1,70 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import type { AnimPhase } from "@/lib/chart-types";
-import { useSettings } from "@/hooks/use-settings";
+import { useSettings, type SettingsOverrides } from "@/hooks/use-settings";
 import { Toolbar } from "@/components/toolbar";
 import { ZoomChart } from "@/components/zoom-chart";
 
-export default function Home() {
+function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverrides {
+  const overrides: SettingsOverrides = {};
+
+  const q = searchParams.get("q");
+  if (q) overrides.symbol = q;
+
+  const speed = searchParams.get("speed");
+  if (speed) {
+    const n = Number(speed);
+    if (!isNaN(n) && n >= 2 && n <= 20) overrides.speed = n;
+  }
+
+  const type = searchParams.get("type");
+  if (type === "candlestick" || type === "line") overrides.chartType = type;
+
+  const from = searchParams.get("from");
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) overrides.fromDate = from;
+
+  const to = searchParams.get("to");
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) overrides.toDate = to;
+
+  return overrides;
+}
+
+function buildSearchURL(params: {
+  symbol: string;
+  speed: number;
+  chartType: string;
+  fromDate?: string;
+  toDate?: string;
+}): string {
+  const sp = new URLSearchParams();
+  sp.set("q", params.symbol);
+  sp.set("speed", String(params.speed));
+  sp.set("type", params.chartType);
+  if (params.fromDate) sp.set("from", params.fromDate);
+  if (params.toDate) sp.set("to", params.toDate);
+  return `?${sp.toString()}`;
+}
+
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const overrides = parseUrlOverrides(searchParams);
+
   const {
     symbol,
     speed,
     chartType,
     lineColor,
+    fromDate,
+    toDate,
     setSpeed,
     updateSymbol,
     updateChartType,
     updateLineColor,
-  } = useSettings();
+    updateFromDate,
+    updateToDate,
+  } = useSettings(overrides);
 
   const [chartKey, setChartKey] = useState(0);
   const [phase, setPhase] = useState<AnimPhase>("idle");
@@ -28,6 +76,18 @@ export default function Home() {
   const [targetMilestone, setTargetMilestone] = useState<number | undefined>(
     undefined
   );
+
+  // Sync URL with current settings (replace, no reload)
+  useEffect(() => {
+    const url = buildSearchURL({
+      symbol,
+      speed,
+      chartType,
+      fromDate,
+      toDate,
+    });
+    window.history.replaceState(null, "", url);
+  }, [symbol, speed, chartType, fromDate, toDate]);
 
   const handleSymbolSelect = useCallback(
     (newSymbol: string) => {
@@ -83,6 +143,8 @@ export default function Home() {
           symbol={symbol}
           chartType={chartType}
           lineColor={lineColor}
+          fromDate={fromDate}
+          toDate={toDate}
           speedRef={speedRef}
           continueCounterRef={continueCounterRef}
           pauseCounterRef={pauseCounterRef}
@@ -94,5 +156,13 @@ export default function Home() {
         />
       </main>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
   );
 }
