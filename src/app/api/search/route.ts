@@ -1,17 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 
 const yahooFinance = new YahooFinance();
 
-export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.get("q");
+// --- Rate Limiter ---
+const rateLimiter = createRateLimiter({
+  name: "api-search",
+  limit: 30,
+  windowSeconds: 60,
+});
 
-  if (!query || query.trim().length === 0) {
-    return NextResponse.json({ results: [] });
+// --- Input Validation ---
+const MAX_QUERY_LENGTH = 50;
+// Strip control characters (C0/C1) but allow normal Unicode
+const CONTROL_CHARS_RE = /[\x00-\x1f\x7f-\x9f]/g;
+
+function setRateLimitHeaders(
+  response: NextResponse,
+  info: { limit: number; remaining: number; reset: number }
+): void {
+  response.headers.set("X-RateLimit-Limit", String(info.limit));
+  response.headers.set("X-RateLimit-Remaining", String(info.remaining));
+  response.headers.set("X-RateLimit-Reset", String(info.reset));
+}
+
+export async function GET(request: NextRequest) {
+  // --- Rate limiting ---
+  const clientIp = getClientIp(request);
+  const rateResult = rateLimiter(clientIp);
+
+  if (!rateResult.success) {
+    const res = NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
+    setRateLimitHeaders(res, rateResult);
+    res.headers.set(
+      "Retry-After",
+      String(rateResult.reset - Math.floor(Date.now() / 1000))
+    );
+    return res;
+  }
+
+  // --- Validate query ---
+  const rawQuery = request.nextUrl.searchParams.get("q");
+
+  if (!rawQuery || rawQuery.trim().length === 0) {
+    const res = NextResponse.json({ results: [] });
+    setRateLimitHeaders(res, rateResult);
+    return res;
+  }
+
+  // Sanitize: strip control characters and enforce length limit
+  const query = rawQuery.replace(CONTROL_CHARS_RE, "").trim().slice(0, MAX_QUERY_LENGTH);
+
+  if (query.length === 0) {
+    const res = NextResponse.json({ results: [] });
+    setRateLimitHeaders(res, rateResult);
+    return res;
   }
 
   try {
-    const result = await yahooFinance.search(query.trim());
+    const result = await yahooFinance.search(query);
     const results = result.quotes
       .filter(
         (q) =>
@@ -28,9 +79,15 @@ export async function GET(request: NextRequest) {
         exchange: q.exchange,
       }));
 
-    return NextResponse.json({ results });
+    const res = NextResponse.json({ results });
+    setRateLimitHeaders(res, rateResult);
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   } catch (error) {
-    console.error("Search error:", error);
-    return NextResponse.json({ results: [] }, { status: 500 });
+    // Log details server-side only — never expose to client
+    console.error("Search failed for query:", query, error);
+    const res = NextResponse.json({ results: [] }, { status: 500 });
+    setRateLimitHeaders(res, rateResult);
+    return res;
   }
 }
