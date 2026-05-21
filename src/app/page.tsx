@@ -19,13 +19,13 @@ import { SettingsModal } from "@/components/settings-modal";
 import { ZoomChart } from "@/components/zoom-chart";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { CompletionOverlay } from "@/components/completion-overlay";
+import { StartOverlay } from "@/components/start-overlay";
 import type { SearchResult } from "@/components/asset-search";
 import { ControlBus } from "@/lib/control-bus";
 
 function HomeContent() {
   const searchParams = useSearchParams();
   const overrides = parseUrlOverrides(searchParams);
-  // don't autoplay from URL params
 
   const {
     symbol,
@@ -125,7 +125,6 @@ function HomeContent() {
         <div
           className="ambient-card relative h-full w-full overflow-hidden rounded-3xl"
         >
-          <CompletionOverlay visible={phase === "complete"} />
           <ChartErrorBoundary onReset={() => setChartKey((k) => k + 1)}>
             <ZoomChart
               key={chartKey}
@@ -144,6 +143,15 @@ function HomeContent() {
               onPriceSnapshotChange={setPriceSnapshot}
             />
           </ChartErrorBoundary>
+          <CompletionOverlay visible={phase === "complete"} />
+          {phase === "idle" && (
+            <StartOverlay
+              onStart={() => {
+                controlBus.continue();
+                handlePhaseChange("animating");
+              }}
+            />
+          )}
         </div>
       </main>
 

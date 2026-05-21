@@ -7,10 +7,11 @@ interface StartOverlayProps {
 export function StartOverlay({ onStart }: StartOverlayProps) {
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/35 backdrop-blur-sm transition-all duration-500">
-      <div className="start-orb pointer-events-none absolute size-[420px] rounded-full bg-[radial-gradient(circle,_rgba(96,165,250,0.22)_0%,_rgba(37,99,235,0.1)_35%,_rgba(15,23,42,0)_72%)]" />
+      <div className="pointer-events-none absolute size-[420px] rounded-full bg-[radial-gradient(circle,_rgba(96,165,250,0.22)_0%,_rgba(37,99,235,0.1)_35%,_rgba(15,23,42,0)_72%)]" />
       <button
+        type="button"
         onClick={onStart}
-        className="group relative flex flex-col items-center gap-5 rounded-3xl border border-white/12 bg-black/35 px-10 py-10 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:bg-black/40"
+        className="group relative flex cursor-pointer flex-col items-center gap-5 rounded-3xl border border-white/12 bg-black/35 px-10 py-10 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-all duration-300 hover:scale-[1.02] hover:bg-black/40"
       >
         <div className="flex flex-col items-center gap-1 text-center">
           <span className="font-heading text-4xl italic tracking-tight text-white/92 sm:text-5xl">

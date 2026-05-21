@@ -18,7 +18,6 @@ import { createChartInstance } from "@/lib/chart-factory";
 import { useChartData } from "@/hooks/use-chart-data";
 import { useChartAnimation } from "@/hooks/use-chart-animation";
 import { useChartTheme } from "@/hooks/use-chart-theme";
-import { StartOverlay } from "@/components/start-overlay";
 import { ControlBus } from "@/lib/control-bus";
 
 interface ZoomChartProps {
@@ -285,6 +284,7 @@ export function ZoomChart({
       className="relative flex-1 min-h-0 h-full w-full transition-opacity duration-300"
       data-phase={phase}
     >
+      <div ref={containerRef} className="absolute inset-0" />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <div className="flex flex-col items-center gap-2">
@@ -300,15 +300,6 @@ export function ZoomChart({
           <span className="text-sm text-destructive">{error}</span>
         </div>
       )}
-      {phase === "idle" && !loading && !error && (
-        <StartOverlay
-          onStart={() => {
-            controlBus.continue();
-            onPhaseChange("animating");
-          }}
-        />
-      )}
-      <div ref={containerRef} className="absolute inset-0" />
     </div>
   );
 }

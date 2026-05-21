@@ -53,18 +53,20 @@ export function SettingsModal({
     return () => document.removeEventListener("keydown", handleKey);
   }, [isOpen, onClose]);
 
+  if (!isOpen) return null;
+
   return (
     <>
       {/* Backdrop */}
       <div
-        className={`settings-modal-backdrop ${isOpen ? "settings-modal-backdrop--open" : ""}`}
+        className="settings-modal-backdrop settings-modal-backdrop--open"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Modal panel */}
       <div
-        className={`settings-modal-container ${isOpen ? "settings-modal-container--open" : ""}`}
+        className="settings-modal-container settings-modal-container--open"
         role="dialog"
         aria-modal="true"
         aria-label="Settings"

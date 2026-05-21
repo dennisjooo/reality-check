@@ -228,15 +228,12 @@ body::after {
   transform: scale(0.95) translateY(8px);
   transition: transform 0.28s cubic-bezier(0.22, 1.15, 0.32, 1);
   overflow: visible;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .settings-modal-container--open .settings-modal-panel {
   transform: scale(1) translateY(0);
-}
-
-.start-orb {
-  animation: ambient-orb-float 10s ease-in-out infinite;
+  pointer-events: auto;
 }
 
 .completion-overlay {
