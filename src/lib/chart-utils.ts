@@ -98,18 +98,23 @@ export function computeSafeRange(
   const upperFence = q3 + 4 * iqr;
 
   // Only apply level-filtering when the raw max/min ratio is extreme (>50×)
-  // to avoid clipping legitimate trending data like a stock dropping 300→60.
+  // AND the filter would only remove a small minority of bars (<10%).
+  // If many bars are "outliers," it's a legitimate trend (e.g. AAPL $1→$300),
+  // not bad data (e.g. IDR/USD with a few erroneous bars at 1.0).
   const rawMin = closes[0];
   const rawMax = closes[closes.length - 1];
   const magnitudeRatio = rawMin > 0 ? rawMax / rawMin : 0;
 
-  const filtered =
-    magnitudeRatio > 50 && iqr > 0
-      ? slice.filter((q) => q.close >= lowerFence && q.close <= upperFence)
-      : slice;
-
-  // If filtering removed everything, fall back to full slice
-  const working = filtered.length > 0 ? filtered : slice;
+  let working = slice;
+  if (magnitudeRatio > 50 && iqr > 0) {
+    const filtered = slice.filter(
+      (q) => q.close >= lowerFence && q.close <= upperFence
+    );
+    const removedPct = 1 - filtered.length / slice.length;
+    if (filtered.length > 0 && removedPct < 0.1) {
+      working = filtered;
+    }
+  }
 
   // --- Tier 2: Bar-range spike filter on surviving bars ---
   const barRanges = working.map((q) => q.high - q.low).sort((a, b) => a - b);
@@ -150,18 +155,19 @@ export function computeSafeRange(
 
 /**
  * Determine if the dataset would benefit from logarithmic price scale.
- * Returns true when the non-outlier price range spans more than 20× —
- * a strong signal that linear scale will squish smaller values.
+ * Returns true only for extreme cases (>100× range between p10 and p90)
+ * where linear scale completely flattens smaller values.
+ * Normal growth stocks (e.g. AAPL $1→$300) stay linear; this only
+ * triggers for things like penny stocks or bad-data currency pairs.
  */
 export function shouldUseLogScale(quotes: ChartData[]): boolean {
-  if (quotes.length < 10) return false;
+  if (quotes.length < 20) return false;
 
   const closes = quotes.map((q) => q.close).filter((c) => c > 0).sort((a, b) => a - b);
-  if (closes.length < 10) return false;
+  if (closes.length < 20) return false;
 
-  // Use 5th and 95th percentile to ignore extreme outliers
-  const p5 = closes[Math.floor(closes.length * 0.05)];
-  const p95 = closes[Math.floor(closes.length * 0.95)];
+  const p10 = closes[Math.floor(closes.length * 0.1)];
+  const p90 = closes[Math.floor(closes.length * 0.9)];
 
-  return p5 > 0 && p95 / p5 > 20;
+  return p10 > 0 && p90 / p10 > 100;
 }
