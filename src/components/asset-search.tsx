@@ -27,6 +27,21 @@ interface AssetSearchProps {
   compact?: boolean;
 }
 
+const POPULAR_ASSETS: SearchResult[] = [
+  { symbol: "BTC-USD", name: "Bitcoin USD", type: "CRYPTOCURRENCY", exchange: "CCC" },
+  { symbol: "ETH-USD", name: "Ethereum USD", type: "CRYPTOCURRENCY", exchange: "CCC" },
+  { symbol: "AAPL", name: "Apple Inc.", type: "EQUITY", exchange: "NMS" },
+  { symbol: "MSFT", name: "Microsoft Corporation", type: "EQUITY", exchange: "NMS" },
+  { symbol: "GOOGL", name: "Alphabet Inc.", type: "EQUITY", exchange: "NMS" },
+  { symbol: "AMZN", name: "Amazon.com, Inc.", type: "EQUITY", exchange: "NMS" },
+  { symbol: "NVDA", name: "NVIDIA Corporation", type: "EQUITY", exchange: "NMS" },
+  { symbol: "SPY", name: "SPDR S&P 500 ETF Trust", type: "ETF", exchange: "PCQ" },
+  { symbol: "QQQ", name: "Invesco QQQ Trust", type: "ETF", exchange: "NGM" },
+  { symbol: "TSLA", name: "Tesla, Inc.", type: "EQUITY", exchange: "NMS" },
+  { symbol: "META", name: "Meta Platforms, Inc.", type: "EQUITY", exchange: "NMS" },
+  { symbol: "GME", name: "GameStop Corp.", type: "EQUITY", exchange: "NYS" },
+];
+
 export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
   function AssetSearch({ onSelect, defaultValue, compact = false }, forwardedRef) {
     const [query, setQuery] = useState("");
@@ -122,7 +137,31 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
             />
             <CommandList className="mt-2">
               {loading && <CommandEmpty>Searching...</CommandEmpty>}
-              {!loading && results.length === 0 && query && (
+              {!loading && query.trim().length === 0 && (
+                <CommandGroup heading="Popular">
+                  {POPULAR_ASSETS.filter(
+                    (a) => !defaultValue || a.symbol !== defaultValue
+                  ).map((result) => (
+                    <CommandItem
+                      key={result.symbol}
+                      value={result.symbol}
+                      onSelect={() => handleSelect(result)}
+                      className="flex w-full items-center gap-3 px-3 py-2 cursor-pointer"
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-sm font-medium">{result.symbol}</span>
+                        <span className="text-xs text-muted-foreground truncate">
+                          {result.name}
+                        </span>
+                      </div>
+                      <CommandShortcut className="shrink-0 rounded bg-muted px-1.5 py-0.5 tracking-normal">
+                        {result.type}
+                      </CommandShortcut>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {!loading && results.length === 0 && query.trim().length > 0 && (
                 <CommandEmpty>No results found.</CommandEmpty>
               )}
               {results.length > 0 && (
