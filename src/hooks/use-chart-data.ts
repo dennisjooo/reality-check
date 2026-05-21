@@ -21,6 +21,13 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
   const prefetchPromiseRef = useRef<Promise<ChartData[] | null> | null>(null);
   const prefetchForOldestRef = useRef<number | null>(null);
 
+  const markNoMoreHistory = useCallback(() => {
+    hasMoreDataRef.current = false;
+    prefetchedChunkRef.current = null;
+    prefetchForOldestRef.current = null;
+    prefetchPromiseRef.current = null;
+  }, []);
+
   const fetchChunk = useCallback(
     async (sym: string, period1: Date, period2: Date): Promise<ChartData[]> => {
       const p1 = Math.floor(period1.getTime() / 1000);
@@ -28,8 +35,14 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
       const res = await fetch(
         `/api/chart?symbol=${encodeURIComponent(sym)}&period1=${p1}&period2=${p2}&interval=${interval}`
       );
-      if (!res.ok) throw new Error("Failed to fetch chart data");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message =
+          typeof data.error === "string" ? data.error : "Failed to fetch chart data";
+        const error = new Error(message) as Error & { status?: number };
+        error.status = res.status;
+        throw error;
+      }
       return data.quotes;
     },
     [interval]
@@ -70,12 +83,18 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
           prefetchedChunkRef.current = olderQuotes;
           return olderQuotes;
         })
-        .catch(() => null)
+        .catch((error: Error & { status?: number }) => {
+          // Yahoo has no history before listing — stop paginating instead of retrying forever.
+          if (error.status === 404 || error.status === 400) {
+            markNoMoreHistory();
+          }
+          return null;
+        })
         .finally(() => {
           prefetchPromiseRef.current = null;
         });
     },
-    [fetchOlderChunk]
+    [fetchOlderChunk, markNoMoreHistory]
   );
 
   const fetchOlderData = useCallback(
@@ -148,11 +167,15 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
         }
 
         return newQuotes.length > 0;
-      } catch {
+      } catch (error) {
+        const status = (error as Error & { status?: number }).status;
+        if (status === 404 || status === 400 || status === 429 || status === 500) {
+          markNoMoreHistory();
+        }
         return false;
       }
     },
-    [chartType, fetchOlderChunk, onDataChange, prefetchOlderData]
+    [chartType, fetchOlderChunk, markNoMoreHistory, onDataChange, prefetchOlderData]
   );
 
   const resetData = useCallback((quotes: ChartData[]) => {

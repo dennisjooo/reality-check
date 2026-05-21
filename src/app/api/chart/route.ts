@@ -152,15 +152,24 @@ export async function GET(request: NextRequest) {
     // Log details server-side only — never expose to client
     console.error("Chart fetch failed for symbol:", symbol, error);
     const message = error instanceof Error ? error.message : "";
+
+    if (message.includes("Data doesn't exist")) {
+      const res = NextResponse.json(
+        { error: "No chart data for this date range" },
+        { status: 404 }
+      );
+      setRateLimitHeaders(res, rateResult);
+      return res;
+    }
+
     let userError = "Failed to fetch chart data";
+    let status = 500;
     if (message.includes("not available") || message.includes("granularity")) {
       const days = INTERVAL_MAX_DAYS[interval];
       userError = `${interval} data is limited to the last ${days} day${days !== 1 ? "s" : ""} by Yahoo Finance`;
+      status = 400;
     }
-    const res = NextResponse.json(
-      { error: userError },
-      { status: 500 }
-    );
+    const res = NextResponse.json({ error: userError }, { status });
     setRateLimitHeaders(res, rateResult);
     return res;
   }
