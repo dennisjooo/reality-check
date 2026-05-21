@@ -40,7 +40,7 @@ export function ChartTypeControl({
       <div className="inline-flex items-center rounded-lg bg-muted p-1 border border-border">
         <button
           onClick={() => onChartTypeChange("candlestick")}
-          className={`h-7 px-3 py-1 text-xs rounded-md transition-all ${
+          className={`control-bounce h-7 rounded-md px-3 py-1 text-xs transition-all ${
             chartType === "candlestick"
               ? "bg-background text-foreground shadow-sm font-medium"
               : "text-muted-foreground hover:text-foreground"
@@ -50,7 +50,7 @@ export function ChartTypeControl({
         </button>
         <button
           onClick={() => onChartTypeChange("line")}
-          className={`h-7 px-3 py-1 text-xs rounded-md transition-all ${
+          className={`control-bounce h-7 rounded-md px-3 py-1 text-xs transition-all ${
             chartType === "line"
               ? "bg-background text-foreground shadow-sm font-medium"
               : "text-muted-foreground hover:text-foreground"
@@ -66,7 +66,7 @@ export function ChartTypeControl({
           <button
             onClick={() => setShowColors(!showColors)}
             title="Toggle line colors"
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors shrink-0 ml-1"
+            className="control-bounce ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-muted transition-colors"
           >
             <Palette className="w-4 h-4 text-foreground" style={{ color: lineColor }} />
           </button>

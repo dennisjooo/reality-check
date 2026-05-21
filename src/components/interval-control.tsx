@@ -20,7 +20,7 @@ export function IntervalControl({
           <button
             key={iv.value}
             onClick={() => onIntervalChange(iv.value)}
-            className={`h-7 px-3 py-1 text-xs rounded-md transition-all ${
+            className={`control-bounce h-7 rounded-md px-3 py-1 text-xs transition-all ${
               interval === iv.value
                 ? "bg-background text-foreground shadow-sm font-medium"
                 : "text-muted-foreground hover:text-foreground"

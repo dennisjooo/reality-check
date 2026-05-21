@@ -32,43 +32,40 @@ export function PlaybackControls({
   };
 
   return (
-    <div className="flex items-center gap-2 self-start sm:self-auto w-full sm:w-auto overflow-x-auto overflow-y-hidden pb-1 sm:pb-0">
+    <div className="flex items-center gap-1.5">
       {phase === "animating" && (
         <Button
           variant="destructive"
-          size="sm"
+          size="icon"
           onClick={handlePause}
-          title="Pause"
-          className="h-9 px-4 flex-1 sm:flex-none"
+          title="Pause playback"
+          className="control-bounce size-9 rounded-full"
         >
-          <Pause className="size-3.5 mr-1.5" />
-          Pause
+          <Pause className="size-4" />
         </Button>
       )}
 
       {(phase === "paused" || phase === "idle") && (
         <Button
           variant="default"
-          size="sm"
+          size="icon"
           onClick={handleContinue}
           title={phase === "idle" ? "Start playback" : "Continue playback"}
-          className="h-9 px-4 flex-1 sm:flex-none"
+          className="control-bounce size-9 rounded-full"
         >
-          <Play className="size-3.5 mr-1.5" />
-          {phase === "idle" ? "Start" : "Continue"}
+          <Play className="size-4 translate-x-[1px]" />
         </Button>
       )}
 
       {phase !== "idle" && (
         <Button
           variant="secondary"
-          size="sm"
+          size="icon"
           onClick={handleResetPlay}
           title="Reset to the beginning"
-          className="h-9 px-4 flex-1 sm:flex-none"
+          className="control-bounce size-9 rounded-full"
         >
-          <Square className="size-3.5 mr-1.5" />
-          Restart
+          <Square className="size-3.5" />
         </Button>
       )}
     </div>

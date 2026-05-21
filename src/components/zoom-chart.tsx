@@ -13,7 +13,13 @@ import {
   LineSeries,
   HistogramSeries,
 } from "lightweight-charts";
-import type { ChartType, ChartInterval, AnimPhase } from "@/lib/chart-types";
+import type {
+  ChartType,
+  ChartInterval,
+  AnimPhase,
+  PriceSnapshot,
+  ChartData,
+} from "@/lib/chart-types";
 import {
   MILESTONES,
   CHUNK_YEARS,
@@ -41,6 +47,24 @@ interface ZoomChartProps {
   phase: AnimPhase;
   targetMilestone?: number;
   onMilestoneChange?: (milestoneIndex: number) => void;
+  onPriceSnapshotChange?: (snapshot: PriceSnapshot | null) => void;
+}
+
+function getPriceSnapshot(quotes: ChartData[]): PriceSnapshot | null {
+  if (quotes.length === 0) return null;
+
+  const firstClose = quotes[0].close;
+  const lastClose = quotes[quotes.length - 1].close;
+  const high = Math.max(...quotes.map((q) => q.high));
+  const low = Math.min(...quotes.map((q) => q.low));
+
+  return {
+    firstClose,
+    lastClose,
+    high,
+    low,
+    points: quotes.length,
+  };
 }
 
 export function ZoomChart({
@@ -57,6 +81,7 @@ export function ZoomChart({
   phase,
   targetMilestone,
   onMilestoneChange,
+  onPriceSnapshotChange,
 }: ZoomChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -74,7 +99,11 @@ export function ZoomChart({
     prefetchOlderData,
     fetchOlderData,
     resetData,
-  } = useChartData({ chartType, interval });
+  } = useChartData({
+    chartType,
+    interval,
+    onDataChange: (quotes) => onPriceSnapshotChange?.(getPriceSnapshot(quotes)),
+  });
 
   const {
     animationRef,
@@ -91,6 +120,7 @@ export function ZoomChart({
     hasMoreDataRef,
     onPhaseChange,
     onMilestoneChange,
+    onPriceSnapshotChange,
     fetchOlderData,
     symbol,
     controlBus,
@@ -117,11 +147,17 @@ export function ZoomChart({
         if (quotes.length === 0) {
           setError("No data available for this symbol");
           setLoading(false);
+          onPriceSnapshotChange?.(null);
           return;
         }
 
         resetData(quotes);
-        prefetchOlderData(symbol);
+
+        if (fromDate) {
+          hasMoreDataRef.current = false;
+        } else {
+          prefetchOlderData(symbol);
+        }
 
         if (chartRef.current) {
           chartRef.current.remove();
@@ -141,7 +177,7 @@ export function ZoomChart({
           layout: {
             background: { type: ColorType.Solid, color: "transparent" },
             textColor: theme.textColor,
-            fontFamily: "var(--font-inter), Inter, system-ui, sans-serif",
+            fontFamily: "var(--font-urbanist), Inter, system-ui, sans-serif",
           },
           grid: {
             vertLines: { color: theme.gridColor },
@@ -276,6 +312,7 @@ export function ZoomChart({
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load chart");
           setLoading(false);
+          onPriceSnapshotChange?.(null);
         }
       }
     }
@@ -300,7 +337,16 @@ export function ZoomChart({
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- ref values are stable; re-init only on symbol/interval/date changes
-  }, [symbol, interval, fetchChunk, prefetchOlderData, targetMilestone, fromDate, toDate]);
+  }, [
+    symbol,
+    interval,
+    fetchChunk,
+    prefetchOlderData,
+    targetMilestone,
+    fromDate,
+    toDate,
+    onPriceSnapshotChange,
+  ]);
 
   const prevChartTypeRef = useRef(chartType);
   useEffect(() => {
@@ -404,7 +450,10 @@ export function ZoomChart({
   }, [chartType, lineColor]);
 
   return (
-    <div className="relative flex-1 min-h-0 h-full w-full">
+    <div
+      className="relative flex-1 min-h-0 h-full w-full transition-opacity duration-300"
+      data-phase={phase}
+    >
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <div className="flex flex-col items-center gap-2">

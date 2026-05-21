@@ -2,8 +2,9 @@
 
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AssetSearch } from "@/components/asset-search";
+import { AssetSearch, type SearchResult } from "@/components/asset-search";
 import { PlaybackControls } from "@/components/playback-controls";
+import { DateRangeInput } from "@/components/date-range-input";
 import type { AnimPhase } from "@/lib/chart-types";
 import { ControlBus } from "@/lib/control-bus";
 
@@ -12,8 +13,11 @@ interface ActionBarProps {
   phase: AnimPhase;
   controlBus: ControlBus;
   searchInputRef: React.RefObject<HTMLButtonElement | null>;
-  onSymbolSelect: (symbol: string) => void;
+  fromDate?: string;
+  toDate?: string;
+  onSymbolSelect: (symbol: string, result?: SearchResult) => void;
   onPhaseChange: (phase: AnimPhase) => void;
+  onDateChange: (from: string | undefined, to: string | undefined) => void;
   onSettingsOpen: () => void;
 }
 
@@ -22,35 +26,42 @@ export function ActionBar({
   phase,
   controlBus,
   searchInputRef,
+  fromDate,
+  toDate,
   onSymbolSelect,
   onPhaseChange,
+  onDateChange,
   onSettingsOpen,
 }: ActionBarProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 border border-border/60 rounded-xl bg-card/80 backdrop-blur-sm shadow-sm w-full">
-      {/* Search */}
-      <div className="w-full sm:max-w-sm shrink-0">
-        <AssetSearch
-          ref={searchInputRef}
-          onSelect={onSymbolSelect}
-          defaultValue={symbol}
-        />
-      </div>
-
-      {/* Playback Controls + Settings */}
-      <div className="flex items-center gap-2">
+    <div className="mx-auto w-full max-w-3xl rounded-full border border-white/[0.08] bg-card/60 px-2 py-2 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-1">
+        <div className="min-w-0 max-w-[40%] flex-1">
+          <AssetSearch
+            ref={searchInputRef}
+            onSelect={onSymbolSelect}
+            defaultValue={symbol}
+            compact
+          />
+        </div>
+        <span className="mx-0.5 hidden size-1 rounded-full bg-white/20 sm:inline-block" />
         <PlaybackControls
           phase={phase}
           controlBus={controlBus}
           onPhaseChange={onPhaseChange}
         />
-        <div className="w-px h-5 bg-border/50 hidden sm:block" />
+        <span className="mx-0.5 hidden size-1 rounded-full bg-white/20 sm:inline-block" />
+        <DateRangeInput
+          fromDate={fromDate}
+          toDate={toDate}
+          onDateChange={onDateChange}
+        />
         <Button
           variant="ghost"
           size="icon"
           onClick={onSettingsOpen}
           title="Settings"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+          className="control-bounce size-9 rounded-full text-muted-foreground hover:text-foreground shrink-0"
         >
           <Settings className="size-4" />
         </Button>

@@ -30,6 +30,7 @@ export function ShareButton() {
       size="icon"
       onClick={handleCopy}
       title="Copy shareable link"
+      className="control-bounce rounded-full"
     >
       {copied ? (
         <Check className="size-3.5 text-green-500" />

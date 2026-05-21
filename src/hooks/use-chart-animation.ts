@@ -2,48 +2,10 @@
 
 import { useCallback, useRef, useEffect } from "react";
 import type { IChartApi } from "lightweight-charts";
-import type { ChartData, AnimPhase } from "@/lib/chart-types";
+import type { ChartData, AnimPhase, PriceSnapshot } from "@/lib/chart-types";
 import { MILESTONES } from "@/lib/chart-constants";
 import { computeSafeRange } from "@/lib/chart-utils";
 import { ControlBus } from "@/lib/control-bus";
-
-/**
- * Build a dynamic milestone list that scales with the total bar count.
- * Uses the fixed MILESTONES as a base, then inserts intermediate steps
- * between the last fixed milestone and totalBars so the final zoom-out
- * is smooth instead of snapping.
- */
-function buildMilestones(totalBars: number, hasMoreData: boolean): number[] {
-  if (hasMoreData) {
-    // Keep all fixed milestones so targets beyond totalBars trigger pagination
-    const extended = [...MILESTONES];
-    const last = MILESTONES[MILESTONES.length - 1];
-    if (totalBars > last) {
-      let next = last * 2;
-      while (next < totalBars) {
-        extended.push(next);
-        next = Math.round(next * 1.8);
-      }
-      extended.push(next);
-    }
-    return extended;
-  }
-
-  const base = MILESTONES.filter((m) => m < totalBars);
-  if (base.length === 0) return [totalBars];
-
-  const last = base[base.length - 1];
-  if (totalBars <= last) return base;
-
-  const extended = [...base];
-  let next = last * 2;
-  while (next < totalBars) {
-    extended.push(next);
-    next = Math.round(next * 1.8);
-  }
-  extended.push(totalBars);
-  return extended;
-}
 
 interface UseChartAnimationOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
@@ -54,6 +16,7 @@ interface UseChartAnimationOptions {
   hasMoreDataRef: React.MutableRefObject<boolean>;
   onPhaseChange: (phase: AnimPhase) => void;
   onMilestoneChange?: (milestoneIndex: number) => void;
+  onPriceSnapshotChange?: (snapshot: PriceSnapshot) => void;
   fetchOlderData: (
     sym: string,
     seriesRef: React.MutableRefObject<ReturnType<IChartApi["addSeries"]> | null>,
@@ -73,6 +36,7 @@ export function useChartAnimation({
   hasMoreDataRef,
   onPhaseChange,
   onMilestoneChange,
+  onPriceSnapshotChange,
   fetchOlderData,
   symbol,
   controlBus,
@@ -80,10 +44,13 @@ export function useChartAnimation({
   const animationRef = useRef<number | null>(null);
   const milestoneIndexRef = useRef(0);
   const animatingRef = useRef(false);
-  const currentProgressRef = useRef(0);
-  const savedProgressRef = useRef(0);
-  const animateToNextMilestoneRef = useRef<(chart: IChartApi, quotes: ChartData[]) => void>(() => {});
-  const resumeAnimationRef = useRef<(chart: IChartApi, quotes: ChartData[]) => void>(() => {});
+  const currentVisibleBarsRef = useRef(0);
+  const lastFrameTimeRef = useRef<number | null>(null);
+  const lastScaleUpdateRef = useRef(0);
+  const lastSnapshotUpdateRef = useRef(0);
+  const isFetchingOlderRef = useRef(false);
+  const manualTargetBarsRef = useRef<number | null>(null);
+  const stepAnimationRef = useRef<(now: number) => void>(() => {});
 
   const applyOutlierSafeScale = useCallback(
     (chart: IChartApi, quotes: ChartData[], fromBarIdx: number, toBarIdx: number) => {
@@ -106,15 +73,242 @@ export function useChartAnimation({
     [seriesRef]
   );
 
-  const pauseAnimation = useCallback(() => {
-    animatingRef.current = false;
+  const cancelCurrentAnimationFrame = useCallback(() => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     }
-    savedProgressRef.current = currentProgressRef.current;
+  }, []);
+
+  const updateMilestoneProgress = useCallback(
+    (visibleBars: number) => {
+      let index = 0;
+      while (index < MILESTONES.length && visibleBars >= MILESTONES[index]) {
+        index += 1;
+      }
+
+      if (index !== milestoneIndexRef.current) {
+        milestoneIndexRef.current = index;
+        onMilestoneChange?.(index);
+      }
+    },
+    [onMilestoneChange]
+  );
+
+  const finishAnimation = useCallback(
+    (chart: IChartApi) => {
+      animatingRef.current = false;
+      manualTargetBarsRef.current = null;
+      cancelCurrentAnimationFrame();
+
+      chart.timeScale().fitContent();
+      chart.applyOptions({ handleScroll: true, handleScale: true });
+
+      if (seriesRef.current) {
+        seriesRef.current.applyOptions({
+          autoscaleInfoProvider: undefined,
+        });
+      }
+
+      milestoneIndexRef.current = MILESTONES.length;
+      onMilestoneChange?.(MILESTONES.length);
+
+      const quotes = quotesRef.current;
+      if (onPriceSnapshotChange && quotes.length > 0) {
+        onPriceSnapshotChange({
+          firstClose: quotes[0].close,
+          lastClose: quotes[quotes.length - 1].close,
+          high: Math.max(...quotes.map((q) => q.high)),
+          low: Math.min(...quotes.map((q) => q.low)),
+          points: quotes.length,
+        });
+      }
+
+      onPhaseChange("complete");
+    },
+    [cancelCurrentAnimationFrame, onMilestoneChange, onPhaseChange, onPriceSnapshotChange, quotesRef, seriesRef]
+  );
+
+  const stepAnimation = useCallback(
+    (now: number) => {
+      const chart = chartRef.current;
+      const quotes = quotesRef.current;
+
+      if (!animatingRef.current || !chart || quotes.length < 2) {
+        return;
+      }
+
+      if (lastFrameTimeRef.current === null) {
+        lastFrameTimeRef.current = now;
+      }
+
+      const deltaSec = Math.max(0.001, (now - lastFrameTimeRef.current) / 1000);
+      lastFrameTimeRef.current = now;
+
+      if (currentVisibleBarsRef.current <= 1) {
+        const visibleRange = chart.timeScale().getVisibleLogicalRange();
+        currentVisibleBarsRef.current = visibleRange
+          ? Math.max(2, visibleRange.to - visibleRange.from + 1)
+          : Math.min(5, quotes.length);
+      }
+
+      const totalBars = quotes.length;
+
+      // Additive floor for visible early motion (before exponential kicks in)
+      const minBarsPerSec = 1.5 + speedRef.current * 1.0;
+      const additive = minBarsPerSec * deltaSec;
+
+      // Exponential: speed 1 ~1.33x/s, speed 5 ~1.65x/s, speed 10 ~2.05x/s
+      const growthPerSecond = 1.25 + speedRef.current * 0.08;
+      const multiplicative =
+        currentVisibleBarsRef.current * (Math.pow(growthPerSecond, deltaSec) - 1);
+
+      currentVisibleBarsRef.current += Math.max(additive, multiplicative);
+      currentVisibleBarsRef.current = Math.min(
+        currentVisibleBarsRef.current,
+        totalBars
+      );
+
+      const lastBarIndex = totalBars - 1;
+      const fromFloat = Math.max(
+        0,
+        lastBarIndex - currentVisibleBarsRef.current + 1
+      );
+
+      // Fractional range for sub-bar smooth scrolling
+      chart.timeScale().setVisibleLogicalRange({
+        from: fromFloat,
+        to: lastBarIndex,
+      });
+
+      // Integer indices for the outlier-safe Y-axis scaling
+      if (now - lastScaleUpdateRef.current >= 120) {
+        applyOutlierSafeScale(chart, quotes, Math.floor(fromFloat), lastBarIndex);
+        lastScaleUpdateRef.current = now;
+      }
+
+      updateMilestoneProgress(currentVisibleBarsRef.current);
+
+      // Rolling price snapshot from visible range, throttled to ~80ms
+      if (onPriceSnapshotChange && now - lastSnapshotUpdateRef.current >= 80) {
+        lastSnapshotUpdateRef.current = now;
+        const fromIdx = Math.max(0, Math.floor(fromFloat));
+        const firstBar = quotes[fromIdx];
+        const lastBar = quotes[lastBarIndex];
+        if (firstBar && lastBar) {
+          onPriceSnapshotChange({
+            firstClose: firstBar.close,
+            lastClose: lastBar.close,
+            high: lastBar.high,
+            low: firstBar.low,
+            points: Math.round(currentVisibleBarsRef.current),
+          });
+        }
+      }
+
+      if (
+        hasMoreDataRef.current &&
+        !isFetchingOlderRef.current &&
+        currentVisibleBarsRef.current >= totalBars * 0.9
+      ) {
+        isFetchingOlderRef.current = true;
+        fetchOlderData(symbol, seriesRef, chartRef, volumeSeriesRef).finally(() => {
+          isFetchingOlderRef.current = false;
+        });
+      }
+
+      if (
+        manualTargetBarsRef.current !== null &&
+        currentVisibleBarsRef.current >= manualTargetBarsRef.current
+      ) {
+        animatingRef.current = false;
+        manualTargetBarsRef.current = null;
+        cancelCurrentAnimationFrame();
+        chart.applyOptions({ handleScroll: true, handleScale: true });
+        onPhaseChange("paused");
+        return;
+      }
+
+      if (!hasMoreDataRef.current && currentVisibleBarsRef.current >= totalBars - 0.5) {
+        finishAnimation(chart);
+        return;
+      }
+
+      animationRef.current = requestAnimationFrame((nextNow) => {
+        stepAnimationRef.current(nextNow);
+      });
+    },
+    [
+      applyOutlierSafeScale,
+      cancelCurrentAnimationFrame,
+      chartRef,
+      fetchOlderData,
+      finishAnimation,
+      hasMoreDataRef,
+      onPhaseChange,
+      onPriceSnapshotChange,
+      quotesRef,
+      seriesRef,
+      speedRef,
+      symbol,
+      updateMilestoneProgress,
+      volumeSeriesRef,
+    ]
+  );
+
+  const startContinuousAnimation = useCallback(
+    (
+      chart: IChartApi,
+      quotes: ChartData[],
+      options?: { fromBars?: number; targetBars?: number }
+    ) => {
+      if (quotes.length < 2) return;
+
+      cancelCurrentAnimationFrame();
+      animatingRef.current = true;
+      onPhaseChange("animating");
+      chart.applyOptions({ handleScroll: false, handleScale: false });
+
+      if (options?.fromBars) {
+        const fromBars = Math.max(2, Math.min(options.fromBars, quotes.length));
+        currentVisibleBarsRef.current = fromBars;
+
+        const lastBarIndex = quotes.length - 1;
+        const fromIndex = Math.max(0, lastBarIndex - fromBars + 1);
+        chart.timeScale().setVisibleLogicalRange({ from: fromIndex, to: lastBarIndex });
+        applyOutlierSafeScale(chart, quotes, fromIndex, lastBarIndex);
+      }
+
+      manualTargetBarsRef.current =
+        options?.targetBars !== undefined
+          ? Math.max(2, Math.min(options.targetBars, quotes.length))
+          : null;
+
+      lastFrameTimeRef.current = null;
+      lastScaleUpdateRef.current = 0;
+      animationRef.current = requestAnimationFrame((nextNow) => {
+        stepAnimationRef.current(nextNow);
+      });
+    },
+    [applyOutlierSafeScale, cancelCurrentAnimationFrame, onPhaseChange]
+  );
+
+  useEffect(() => {
+    stepAnimationRef.current = stepAnimation;
+  }, [stepAnimation]);
+
+  const pauseAnimation = useCallback(() => {
+    if (!animatingRef.current) return;
+
+    animatingRef.current = false;
+    cancelCurrentAnimationFrame();
+
+    if (chartRef.current) {
+      chartRef.current.applyOptions({ handleScroll: true, handleScale: true });
+    }
+
     onPhaseChange("paused");
-  }, [onPhaseChange]);
+  }, [cancelCurrentAnimationFrame, chartRef, onPhaseChange]);
 
   const runAnimation = useCallback(
     (
@@ -122,261 +316,81 @@ export function useChartAnimation({
       quotes: ChartData[],
       milestoneIdx: number,
       toBars: number,
-      lastBarIndex: number,
-      fromBarsOverride?: number,
-      resumeProgress: number = 0
+      _lastBarIndex: number,
+      fromBarsOverride?: number
     ) => {
-      const totalBars = quotes.length;
-
-      const fromBars =
-        fromBarsOverride ??
-        (milestoneIdx === 0
-          ? Math.min(5, totalBars)
-          : Math.max(1, Math.min(totalBars - 1, Math.round(toBars * 0.6))));
-      const fromIndex = Math.max(0, lastBarIndex - fromBars + 1);
-      const targetFromIndex = Math.max(0, lastBarIndex - toBars + 1);
-
-      if (resumeProgress === 0) {
-        chart.timeScale().setVisibleLogicalRange({
-          from: fromIndex,
-          to: lastBarIndex,
-        });
-
-        applyOutlierSafeScale(chart, quotes, fromIndex, lastBarIndex);
-      }
-
-      chart.applyOptions({ handleScroll: false, handleScale: false });
-
-      animatingRef.current = true;
-      onPhaseChange("animating");
-
-      savedProgressRef.current = 0;
-      if (resumeProgress === 0) {
-        currentProgressRef.current = 0;
-      }
-
-      let animStartTime: number | null = null;
-      const logFrom = Math.log(fromBars);
-      const logTo = Math.log(toBars);
-      let lastRenderedBars = -1;
-
-      function animate(now: number) {
-        if (!animatingRef.current) return;
-
-        const durationMs = (11 - speedRef.current) * 1000;
-        if (animStartTime === null) {
-          animStartTime = now - resumeProgress * durationMs;
-        }
-
-        const elapsed = now - animStartTime;
-        const progress = Math.min(elapsed / durationMs, 1);
-        currentProgressRef.current = progress;
-
-        const eased =
-          progress < 0.5
-            ? 4 * progress * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-
-        const currentBars = Math.exp(logFrom + (logTo - logFrom) * eased);
-
-        if (Math.abs(currentBars - lastRenderedBars) > 0.01) {
-          lastRenderedBars = currentBars;
-          chart.timeScale().setVisibleLogicalRange({
-            from: lastBarIndex - currentBars + 1,
-            to: lastBarIndex,
-          });
-
-          if (Math.floor(progress * 100) > Math.floor((progress - 0.01) * 100)) {
-            applyOutlierSafeScale(
-              chart,
-              quotes,
-              Math.max(0, Math.round(lastBarIndex - currentBars + 1)),
-              lastBarIndex
-            );
-          }
-        }
-
-        if (progress < 1) {
-          animationRef.current = requestAnimationFrame(animate);
-        } else {
-          if (toBars >= totalBars) {
-            chart.timeScale().fitContent();
-          } else {
-            chart.timeScale().setVisibleLogicalRange({
-              from: lastBarIndex - toBars + 1,
-              to: lastBarIndex,
-            });
-            applyOutlierSafeScale(
-              chart,
-              quotes,
-              lastBarIndex - toBars + 1,
-              lastBarIndex
-            );
-          }
-
-          // Always clear custom autoscale so native scaling takes over
-          if (seriesRef.current) {
-            seriesRef.current.applyOptions({
-              autoscaleInfoProvider: undefined,
-            });
-          }
-
-          animatingRef.current = false;
-          chart.applyOptions({ handleScroll: true, handleScale: true });
-
-          milestoneIndexRef.current = milestoneIdx + 1;
-          onMilestoneChange?.(milestoneIdx + 1);
-
-          animateToNextMilestoneRef.current(chart, quotes);
-        }
-      }
-
-      animationRef.current = requestAnimationFrame(animate);
+      milestoneIndexRef.current = milestoneIdx;
+      onMilestoneChange?.(milestoneIdx);
+      startContinuousAnimation(chart, quotes, {
+        fromBars: fromBarsOverride ?? Math.min(5, quotes.length),
+        targetBars: toBars,
+      });
     },
-    [applyOutlierSafeScale, onPhaseChange, onMilestoneChange, seriesRef, speedRef]
+    [onMilestoneChange, startContinuousAnimation]
   );
 
   const resumeAnimation = useCallback(
     (chart: IChartApi, quotes: ChartData[]) => {
-      if (quotes.length < 2) return;
-
-      const totalBars = quotes.length;
-      const lastBarIndex = totalBars - 1;
-      const effectiveMilestones = buildMilestones(totalBars, hasMoreDataRef.current);
-      const idx = milestoneIndexRef.current;
-      if (idx >= effectiveMilestones.length) {
-        onPhaseChange("complete");
-        return;
-      }
-
-      let targetBars = effectiveMilestones[idx];
-      const fromBars =
-        idx === 0
-          ? Math.min(5, totalBars)
-          : Math.min(effectiveMilestones[idx - 1], totalBars);
-
-      if (targetBars > totalBars && hasMoreDataRef.current) {
-        // Keep UI in animating state while fetching additional history,
-        // otherwise controls briefly flip to "Continue" mid-run.
-        fetchOlderData(symbol, seriesRef, chartRef, volumeSeriesRef).then((gotMore) => {
-          if (gotMore && chartRef.current) {
-            resumeAnimationRef.current(chartRef.current, quotesRef.current);
-          } else if (!gotMore) {
-            targetBars = totalBars;
-            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex, fromBars, savedProgressRef.current);
-          }
-        });
-        return;
-      }
-
-      targetBars = Math.min(targetBars, totalBars);
-
-      animatingRef.current = true;
-      onPhaseChange("animating");
-
-      runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars, savedProgressRef.current);
+      startContinuousAnimation(chart, quotes);
     },
-    [
-      chartRef,
-      fetchOlderData,
-      hasMoreDataRef,
-      onPhaseChange,
-      quotesRef,
-      runAnimation,
-      seriesRef,
-      symbol,
-      volumeSeriesRef,
-    ]
+    [startContinuousAnimation]
   );
 
   const animateToNextMilestone = useCallback(
     (chart: IChartApi, quotes: ChartData[]) => {
-      if (quotes.length < 2) return;
-
-      const totalBars = quotes.length;
-      const lastBarIndex = totalBars - 1;
-      const effectiveMilestones = buildMilestones(totalBars, hasMoreDataRef.current);
-      const idx = milestoneIndexRef.current;
-      if (idx >= effectiveMilestones.length) {
-        onPhaseChange("complete");
-        return;
-      }
-
-      let targetBars = effectiveMilestones[idx];
-      const fromBars =
-        idx === 0
-          ? Math.min(5, totalBars)
-          : Math.min(effectiveMilestones[idx - 1], totalBars);
-
-      if (targetBars > totalBars && hasMoreDataRef.current) {
-        // Keep UI in animating state while fetching additional history,
-        // otherwise controls briefly flip to "Continue" mid-run.
-        fetchOlderData(symbol, seriesRef, chartRef, volumeSeriesRef).then((gotMore) => {
-          if (gotMore && chartRef.current) {
-            animateToNextMilestoneRef.current(chartRef.current, quotesRef.current);
-          } else if (!gotMore) {
-            targetBars = totalBars;
-            runAnimation(chart, quotesRef.current, idx, targetBars, lastBarIndex, fromBars);
-          }
-        });
-        return;
-      }
-
-      targetBars = Math.min(targetBars, totalBars);
-
-      runAnimation(chart, quotes, idx, targetBars, lastBarIndex, fromBars);
+      startContinuousAnimation(chart, quotes);
     },
-    [
-      chartRef,
-      fetchOlderData,
-      hasMoreDataRef,
-      onPhaseChange,
-      quotesRef,
-      runAnimation,
-      seriesRef,
-      symbol,
-      volumeSeriesRef,
-    ]
+    [startContinuousAnimation]
   );
-
-  useEffect(() => {
-    animateToNextMilestoneRef.current = animateToNextMilestone;
-    resumeAnimationRef.current = resumeAnimation;
-  }, [animateToNextMilestone, resumeAnimation]);
 
   const resetPlay = useCallback(
     (chart: IChartApi, quotes: ChartData[]) => {
-      animatingRef.current = false;
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
+      if (quotes.length < 2) return;
 
-      savedProgressRef.current = 0;
-      currentProgressRef.current = 0;
+      animatingRef.current = false;
+      manualTargetBarsRef.current = null;
+      cancelCurrentAnimationFrame();
+
       milestoneIndexRef.current = 0;
       onMilestoneChange?.(0);
+      currentVisibleBarsRef.current = Math.min(5, quotes.length);
 
-      const fromBars = Math.min(5, quotes.length);
-      chart.timeScale().setVisibleLogicalRange({
-        from: quotes.length - 1 - fromBars + 1,
-        to: quotes.length - 1,
-      });
+      const lastBarIndex = quotes.length - 1;
+      const fromIndex = Math.max(0, lastBarIndex - currentVisibleBarsRef.current + 1);
+      chart.timeScale().setVisibleLogicalRange({ from: fromIndex, to: lastBarIndex });
+      applyOutlierSafeScale(chart, quotes, fromIndex, lastBarIndex);
 
-      animateToNextMilestone(chart, quotes);
+      lastSnapshotUpdateRef.current = 0;
+      if (onPriceSnapshotChange && quotes.length > 0) {
+        const firstBar = quotes[fromIndex];
+        const lastBar = quotes[lastBarIndex];
+        if (firstBar && lastBar) {
+          onPriceSnapshotChange({
+            firstClose: firstBar.close,
+            lastClose: lastBar.close,
+            high: lastBar.high,
+            low: firstBar.low,
+            points: Math.round(currentVisibleBarsRef.current),
+          });
+        }
+      }
+
+      startContinuousAnimation(chart, quotes);
     },
-    [animateToNextMilestone, onMilestoneChange]
+    [
+      applyOutlierSafeScale,
+      cancelCurrentAnimationFrame,
+      onMilestoneChange,
+      onPriceSnapshotChange,
+      startContinuousAnimation,
+    ]
   );
 
   // Subscribe to control bus events
   useEffect(() => {
     const unsubContinue = controlBus.on("continue", () => {
       if (quotesRef.current.length > 0 && chartRef.current) {
-        if (savedProgressRef.current > 0 && savedProgressRef.current < 1) {
-          resumeAnimation(chartRef.current, quotesRef.current);
-        } else {
-          animateToNextMilestone(chartRef.current, quotesRef.current);
-        }
+        resumeAnimation(chartRef.current, quotesRef.current);
       }
     });
 
@@ -397,14 +411,18 @@ export function useChartAnimation({
       unsubPause();
       unsubReset();
     };
-  }, [controlBus, chartRef, quotesRef, resumeAnimation, animateToNextMilestone, pauseAnimation, resetPlay]);
+  }, [controlBus, chartRef, quotesRef, resumeAnimation, pauseAnimation, resetPlay]);
+
+  useEffect(() => {
+    return () => {
+      cancelCurrentAnimationFrame();
+    };
+  }, [cancelCurrentAnimationFrame]);
 
   return {
     animationRef,
     animatingRef,
     milestoneIndexRef,
-    savedProgressRef,
-    currentProgressRef,
     applyOutlierSafeScale,
     pauseAnimation,
     resumeAnimation,

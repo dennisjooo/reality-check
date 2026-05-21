@@ -4,8 +4,8 @@ import type { ChartData } from "./chart-types";
 export function getChartTheme(isDark: boolean) {
   return {
     textColor: isDark ? "#9ca3af" : "#6b7280",
-    gridColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)",
-    borderColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+    gridColor: isDark ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.06)",
+    borderColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.1)",
   };
 }
 

@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, Suspense } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+  Suspense,
+} from "react";
 import { useSearchParams } from "next/navigation";
-import type { AnimPhase, ChartInterval } from "@/lib/chart-types";
+import type { AnimPhase, ChartInterval, PriceSnapshot } from "@/lib/chart-types";
 import { useSettings, type SettingsOverrides } from "@/hooks/use-settings";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { Header } from "@/components/header";
@@ -10,6 +17,8 @@ import { ActionBar } from "@/components/action-bar";
 import { SettingsModal } from "@/components/settings-modal";
 import { ZoomChart } from "@/components/zoom-chart";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
+import { CompletionOverlay } from "@/components/completion-overlay";
+import type { SearchResult } from "@/components/asset-search";
 import { ControlBus } from "@/lib/control-bus";
 
 function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverrides {
@@ -75,6 +84,9 @@ function HomeContent() {
 
   const {
     symbol,
+    assetName,
+    assetType,
+    exchange,
     speed,
     chartType,
     interval,
@@ -86,12 +98,14 @@ function HomeContent() {
     updateChartType,
     updateInterval,
     updateLineColor,
+    updateFromDate,
+    updateToDate,
   } = useSettings(overrides);
 
   const [chartKey, setChartKey] = useState(0);
   const [phase, setPhase] = useState<AnimPhase>("idle");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const milestoneRef = useRef(0);
+  const [priceSnapshot, setPriceSnapshot] = useState<PriceSnapshot | null>(null);
   const speedRef = useRef(speed);
   const searchInputRef = useRef<HTMLButtonElement>(null);
 
@@ -122,18 +136,29 @@ function HomeContent() {
   }, [speed]);
 
   const handleSymbolSelect = useCallback(
-    (newSymbol: string) => {
-      updateSymbol(newSymbol);
-      milestoneRef.current = 0;
+    (newSymbol: string, result?: SearchResult) => {
+      updateSymbol(newSymbol, {
+        name: result?.name,
+        type: result?.type,
+        exchange: result?.exchange,
+      });
+      setPriceSnapshot(null);
       setChartKey((k) => k + 1);
       setPhase("idle");
     },
     [updateSymbol]
   );
 
-  const handleMilestoneChange = useCallback((milestoneIndex: number) => {
-    milestoneRef.current = milestoneIndex;
-  }, []);
+  const handleDateChange = useCallback(
+    (from: string | undefined, to: string | undefined) => {
+      updateFromDate(from);
+      updateToDate(to);
+      setChartKey((k) => k + 1);
+      setPhase("idle");
+      setPriceSnapshot(null);
+    },
+    [updateFromDate, updateToDate]
+  );
 
   const handlePhaseChange = useCallback((newPhase: AnimPhase) => {
     setPhase(newPhase);
@@ -141,16 +166,21 @@ function HomeContent() {
 
   return (
     <div className="h-dvh max-h-dvh overflow-hidden bg-background text-foreground flex flex-col px-3 sm:px-6 py-3">
-      {/* Compact editorial header */}
       <div className="shrink-0">
         <Header
           symbol={symbol}
+          assetName={assetName}
+          assetType={assetType}
+          exchange={exchange}
+          priceSnapshot={priceSnapshot}
         />
       </div>
 
-      {/* Chart — fills all available space */}
       <main className="flex-1 min-h-0 my-2">
-        <div className="w-full h-full border border-border/60 rounded-2xl shadow-sm overflow-hidden bg-card/50 relative">
+        <div
+          className="ambient-card relative h-full w-full overflow-hidden rounded-3xl"
+        >
+          <CompletionOverlay visible={phase === "complete"} />
           <ChartErrorBoundary onReset={() => setChartKey((k) => k + 1)}>
             <ZoomChart
               key={chartKey}
@@ -166,26 +196,27 @@ function HomeContent() {
               onPhaseChange={handlePhaseChange}
               phase={phase}
               targetMilestone={undefined}
-              onMilestoneChange={handleMilestoneChange}
+              onPriceSnapshotChange={setPriceSnapshot}
             />
           </ChartErrorBoundary>
         </div>
       </main>
 
-      {/* Bottom action bar: search + playback */}
-      <div className="shrink-0 pb-1">
+      <div className="relative z-50 shrink-0 pb-1 pt-1">
         <ActionBar
           symbol={symbol}
           phase={phase}
           controlBus={controlBus}
           searchInputRef={searchInputRef}
+          fromDate={fromDate}
+          toDate={toDate}
           onSymbolSelect={handleSymbolSelect}
           onPhaseChange={handlePhaseChange}
+          onDateChange={handleDateChange}
           onSettingsOpen={() => setIsSettingsOpen(true)}
         />
       </div>
 
-      {/* Settings modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -195,17 +226,12 @@ function HomeContent() {
         lineColor={lineColor}
         phase={phase}
         speedRef={speedRef}
-        lastMilestoneRef={milestoneRef}
         onSpeedChange={setSpeed}
         onChartTypeChange={updateChartType}
         onIntervalChange={updateInterval}
         onLineColorChange={updateLineColor}
         onPhaseChange={handlePhaseChange}
         onChartKeyBump={() => setChartKey((k) => k + 1)}
-        onTargetMilestoneSet={(m) => {
-          if (m !== undefined) {
-          }
-        }}
       />
     </div>
   );

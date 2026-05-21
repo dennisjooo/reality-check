@@ -7,6 +7,11 @@ export const MILESTONES = [50, 200, 500, 1500, 5000];
 export const CHUNK_YEARS = 2;
 
 export const DEFAULT_SYMBOL = "BTC-USD";
+export const DEFAULT_ASSET_META = {
+  name: "Bitcoin USD",
+  type: "CRYPTOCURRENCY",
+  exchange: "CCC",
+} as const;
 export const DEFAULT_SPEED = 6;
 export const DEFAULT_LINE_COLOR = "#3b82f6";
 export const DEFAULT_INTERVAL: ChartInterval = "1d";
@@ -22,8 +27,8 @@ export const LS_KEY = "reality-check-settings";
 
 export const LINE_COLORS = [
   { name: "Blue", value: "#3b82f6" },
-  { name: "Green", value: "#22c55e" },
-  { name: "Red", value: "#ef4444" },
+  { name: "Green", value: "#34d399" },
+  { name: "Red", value: "#f87171" },
   { name: "Purple", value: "#a855f7" },
   { name: "Orange", value: "#f97316" },
   { name: "Cyan", value: "#06b6d4" },
@@ -32,12 +37,12 @@ export const LINE_COLORS = [
 ];
 
 export const CANDLESTICK_COLORS = {
-  upColor: "#22c55e",
-  downColor: "#ef4444",
-  borderDownColor: "#ef4444",
-  borderUpColor: "#22c55e",
-  wickDownColor: "#ef4444",
-  wickUpColor: "#22c55e",
+  upColor: "#34d399",
+  downColor: "#f87171",
+  borderDownColor: "#f87171",
+  borderUpColor: "#34d399",
+  wickDownColor: "#f87171",
+  wickUpColor: "#34d399",
 } as const;
 
 export const LINE_SERIES_OPTIONS = {
@@ -45,17 +50,20 @@ export const LINE_SERIES_OPTIONS = {
 } as const;
 
 export const VOLUME_COLORS = {
-  upColor: "rgba(34, 197, 94, 0.45)",
-  downColor: "rgba(239, 68, 68, 0.45)",
+  upColor: "rgba(52, 211, 153, 0.42)",
+  downColor: "rgba(248, 113, 113, 0.42)",
 } as const;
 
 export interface PersistedSettings {
   symbol?: string;
+  assetName?: string;
+  assetType?: string;
+  exchange?: string;
   speed?: number;
   chartType?: ChartType;
   lineColor?: string;
   interval?: ChartInterval;
-  fromDate?: string; // ISO date string YYYY-MM-DD
-  toDate?: string; // ISO date string YYYY-MM-DD
-  savedAt?: number; // timestamp when settings were saved
+  fromDate?: string;
+  toDate?: string;
+  savedAt?: number;
 }

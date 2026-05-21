@@ -5,6 +5,7 @@ import type { ChartType, ChartInterval } from "@/lib/chart-types";
 import {
   LS_KEY,
   DEFAULT_SYMBOL,
+  DEFAULT_ASSET_META,
   DEFAULT_SPEED,
   DEFAULT_LINE_COLOR,
   DEFAULT_INTERVAL,
@@ -67,15 +68,36 @@ export function useSettings(overrides?: SettingsOverrides) {
   const [toDate, setToDate] = useState<string | undefined>(
     overrides?.toDate ?? saved.toDate
   );
+  const isDefault = (overrides?.symbol ?? saved.symbol ?? DEFAULT_SYMBOL) === DEFAULT_SYMBOL;
+  const [assetName, setAssetName] = useState<string | undefined>(
+    saved.assetName ?? (isDefault ? DEFAULT_ASSET_META.name : undefined)
+  );
+  const [assetType, setAssetType] = useState<string | undefined>(
+    saved.assetType ?? (isDefault ? DEFAULT_ASSET_META.type : undefined)
+  );
+  const [exchange, setExchange] = useState<string | undefined>(
+    saved.exchange ?? (isDefault ? DEFAULT_ASSET_META.exchange : undefined)
+  );
 
   useEffect(() => {
     saveSettings({ speed, chartType, lineColor, interval, fromDate, toDate });
   }, [speed, chartType, lineColor, interval, fromDate, toDate]);
 
-  const updateSymbol = useCallback((newSymbol: string) => {
-    setSymbol(newSymbol);
-    saveSettings({ symbol: newSymbol });
-  }, []);
+  const updateSymbol = useCallback(
+    (newSymbol: string, meta?: { name?: string; type?: string; exchange?: string }) => {
+      setSymbol(newSymbol);
+      setAssetName(meta?.name);
+      setAssetType(meta?.type);
+      setExchange(meta?.exchange);
+      saveSettings({
+        symbol: newSymbol,
+        assetName: meta?.name,
+        assetType: meta?.type,
+        exchange: meta?.exchange,
+      });
+    },
+    []
+  );
 
   const updateChartType = useCallback((type: ChartType) => {
     setChartType(type);
@@ -104,6 +126,9 @@ export function useSettings(overrides?: SettingsOverrides) {
 
   return {
     symbol,
+    assetName,
+    assetType,
+    exchange,
     speed,
     chartType,
     interval,

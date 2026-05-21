@@ -29,7 +29,7 @@ export default function RootLayout({
       className={`${urbanist.variable} ${playfair.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
+      <body className="relative min-h-full flex flex-col bg-background text-foreground font-sans">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           {children}
         </ThemeProvider>

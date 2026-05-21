@@ -8,8 +8,6 @@ interface SpeedControlProps {
   onSpeedChange: (speed: number) => void;
   speedRef: React.MutableRefObject<number>;
   phase: AnimPhase;
-  lastMilestoneRef: React.MutableRefObject<number>;
-  onTargetMilestoneSet: (milestone: number | undefined) => void;
   onChartKeyBump: () => void;
   onPhaseChange: (phase: AnimPhase) => void;
 }
@@ -19,8 +17,6 @@ export function SpeedControl({
   onSpeedChange,
   speedRef,
   phase,
-  lastMilestoneRef,
-  onTargetMilestoneSet,
   onChartKeyBump,
   onPhaseChange,
 }: SpeedControlProps) {
@@ -52,11 +48,9 @@ export function SpeedControl({
           }}
           onPointerUp={() => {
             if (
-              phase !== "animating" &&
-              lastMilestoneRef.current > 0 &&
+              phase === "paused" &&
               speedRef.current !== speedBeforeDragRef.current
             ) {
-              onTargetMilestoneSet(lastMilestoneRef.current);
               onChartKeyBump();
               onPhaseChange("animating");
             }

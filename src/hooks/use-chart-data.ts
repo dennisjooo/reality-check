@@ -9,9 +9,10 @@ import type { IChartApi, Time, HistogramData } from "lightweight-charts";
 interface UseChartDataOptions {
   chartType: ChartType;
   interval: ChartInterval;
+  onDataChange?: (quotes: ChartData[]) => void;
 }
 
-export function useChartData({ chartType, interval }: UseChartDataOptions) {
+export function useChartData({ chartType, interval, onDataChange }: UseChartDataOptions) {
   const quotesRef = useRef<ChartData[]>([]);
   const hasMoreDataRef = useRef(true);
   const oldestTimestampRef = useRef<number | null>(null);
@@ -117,6 +118,7 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
           newQuotes.sort((a, b) => a.time - b.time);
           quotesRef.current = [...newQuotes, ...quotesRef.current];
           oldestTimestampRef.current = newQuotes[0].time;
+          onDataChange?.(quotesRef.current);
 
           if (seriesRef.current && chartRef.current) {
             const visibleRange = chartRef.current.timeScale().getVisibleLogicalRange();
@@ -168,7 +170,7 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
         return false;
       }
     },
-    [chartType, fetchOlderChunk, prefetchOlderData]
+    [chartType, fetchOlderChunk, onDataChange, prefetchOlderData]
   );
 
   const resetData = useCallback((quotes: ChartData[]) => {
@@ -178,7 +180,8 @@ export function useChartData({ chartType, interval }: UseChartDataOptions) {
     prefetchedChunkRef.current = null;
     prefetchPromiseRef.current = null;
     prefetchForOldestRef.current = null;
-  }, []);
+    onDataChange?.(quotesRef.current);
+  }, [onDataChange]);
 
   return {
     quotesRef,

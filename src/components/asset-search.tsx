@@ -14,7 +14,7 @@ import {
   Command,
 } from "@/components/ui/command";
 
-interface SearchResult {
+export interface SearchResult {
   symbol: string;
   name: string;
   type: string;
@@ -22,12 +22,13 @@ interface SearchResult {
 }
 
 interface AssetSearchProps {
-  onSelect: (symbol: string) => void;
+  onSelect: (symbol: string, result?: SearchResult) => void;
   defaultValue?: string;
+  compact?: boolean;
 }
 
 export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
-  function AssetSearch({ onSelect, defaultValue }, forwardedRef) {
+  function AssetSearch({ onSelect, defaultValue, compact = false }, forwardedRef) {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -70,7 +71,7 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
       setIsOpen(false);
       setQuery("");
       setResults([]);
-      onSelect(result.symbol);
+      onSelect(result.symbol, result);
     };
 
     useEffect(() => {
@@ -97,14 +98,20 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
         <Button
           ref={forwardedRef}
           variant="outline"
-          className="relative w-full justify-start text-sm text-foreground sm:pr-12 bg-muted/50 font-medium"
+          className={`relative w-full justify-start text-sm text-foreground font-medium ${
+            compact
+              ? "h-9 rounded-full border-white/10 bg-white/5 pl-3 pr-3 sm:pr-3"
+              : "bg-muted/50 sm:pr-12"
+          }`}
           onClick={() => setIsOpen(true)}
         >
           <Search className="mr-2 size-4 shrink-0 opacity-50" />
           <span className="truncate">{defaultValue || "Search asset..."}</span>
-          <kbd className="pointer-events-none absolute right-1.5 top-1/2 hidden h-6 -translate-y-1/2 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-            <span className="text-xs">⌘</span>K
-          </kbd>
+          {!compact && (
+            <kbd className="pointer-events-none absolute right-1.5 top-1/2 hidden h-6 -translate-y-1/2 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          )}
         </Button>
         <CommandDialog open={isOpen} onOpenChange={setIsOpen}>
           <Command shouldFilter={false} onKeyDown={handleKeyDown}>
