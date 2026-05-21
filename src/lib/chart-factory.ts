@@ -1,7 +1,7 @@
 import type { IChartApi } from "lightweight-charts";
-import { ColorType } from "lightweight-charts";
+import { ColorType, PriceScaleMode } from "lightweight-charts";
 import type { ChartType } from "@/lib/chart-types";
-import { getChartTheme, getPriceFormat } from "@/lib/chart-utils";
+import { getChartTheme, getPriceFormat, shouldUseLogScale } from "@/lib/chart-utils";
 import type { ChartData } from "@/lib/chart-types";
 import { addPriceSeries, addVolumeSeries } from "@/lib/chart-series";
 
@@ -43,6 +43,7 @@ export function createChartInstance(
     },
     rightPriceScale: {
       borderColor: theme.borderColor,
+      mode: shouldUseLogScale(quotes) ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
     },
     timeScale: {
       borderColor: theme.borderColor,
