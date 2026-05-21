@@ -66,6 +66,7 @@ export function buildRollingSnapshot(
   troughIndex?: number;
   troughPrice?: number;
   troughTime?: number;
+  lastTime?: number;
   lastLogicalIndex?: number; 
   getCoordinate?: (time: number, p: number) => {x: number, y: number} | null 
 } | null {
@@ -95,5 +96,6 @@ export function buildRollingSnapshot(
     troughIndex,
     troughPrice: troughClose,
     troughTime: quotes[troughIndex]?.time,
+    lastTime: lastBar.time,
   };
 }

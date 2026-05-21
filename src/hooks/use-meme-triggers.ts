@@ -4,6 +4,23 @@ import { useEffect, useRef, useCallback } from "react";
 import type { PriceSnapshot } from "@/lib/chart-types";
 import type { StickyMeme } from "@/lib/meme-geometry";
 
+/**
+ * Compute a dynamic milestone step based on visible data amplitude.
+ * High-volatility data (BTC, meme stocks) gets a smaller step so memes
+ * fire more frequently. Calm data keeps the default 1% step.
+ */
+function computeStep(snapshot: PriceSnapshot): number {
+  const { firstClose, high, low } = snapshot;
+  if (!firstClose) return 1;
+  const amplitude = ((high - low) / firstClose) * 100;
+  if (amplitude > 100) return 0.25;
+  if (amplitude > 50) return 0.5;
+  if (amplitude > 20) return 0.75;
+  return 1;
+}
+
+const MAX_CATCHUP_PER_FRAME = 3;
+
 export function useMemeTriggers(
   priceSnapshot: PriceSnapshot | null,
   phase: string,
@@ -26,48 +43,65 @@ export function useMemeTriggers(
   const nextPosMilestoneRef = useRef<number>(1);
   const nextNegMilestoneRef = useRef<number>(-1);
   const triggeredTimesRef = useRef<Set<number>>(new Set());
+  const stepRef = useRef<number>(1);
 
   const resetTriggers = useCallback(() => {
     nextPosMilestoneRef.current = 1;
     nextNegMilestoneRef.current = -1;
     triggeredTimesRef.current.clear();
+    stepRef.current = 1;
   }, []);
 
-  // Milestone-based trigger logic
   useEffect(() => {
     if (!priceSnapshot || phase !== "animating") return;
 
     const { firstClose, lastClose, points } = priceSnapshot;
     if (!firstClose || !points || points < 30) return;
 
+    const step = computeStep(priceSnapshot);
+    stepRef.current = step;
+
     const percentChange = ((lastClose - firstClose) / firstClose) * 100;
 
-    // Skip memes anchored to the leftmost 20% of visible range — that data
-    // was just revealed by the zoom-out and feels "not yet traversed".
     const leftEdge =
       (priceSnapshot.lastLogicalIndex ?? 0) - priceSnapshot.points + 1;
     const leftBuffer = leftEdge + priceSnapshot.points * 0.2;
 
     if (percentChange >= nextPosMilestoneRef.current) {
-      const targetIdx = priceSnapshot.peakIndex ?? 0;
-      const targetTime = priceSnapshot.peakTime;
-      const targetPrice =
-        priceSnapshot.peakPrice ?? priceSnapshot.lastClose;
-      nextPosMilestoneRef.current =
-        Math.floor(percentChange / 1) * 1 + 1;
+      const milestonesToCover = Math.floor(
+        (percentChange - nextPosMilestoneRef.current) / step
+      ) + 1;
+      const spawns = Math.min(milestonesToCover, MAX_CATCHUP_PER_FRAME);
 
-      if (
-        targetTime &&
-        targetIdx >= leftBuffer &&
-        !triggeredTimesRef.current.has(targetTime)
-      ) {
-        if (isAnchorTooClose(targetTime, targetPrice)) {
-          // Mark this anchor as handled so future milestones don't keep spawning
-          // at nearly the same chart point.
-          triggeredTimesRef.current.add(targetTime);
-          return;
+      nextPosMilestoneRef.current =
+        Math.floor(percentChange / step) * step + step;
+
+      for (let i = 0; i < spawns; i++) {
+        const usePeak = i === 0;
+        const targetIdx = usePeak
+          ? (priceSnapshot.peakIndex ?? 0)
+          : (priceSnapshot.lastLogicalIndex ?? 0);
+        const targetTime = usePeak
+          ? priceSnapshot.peakTime
+          : priceSnapshot.lastTime;
+        const targetPrice = usePeak
+          ? (priceSnapshot.peakPrice ?? lastClose)
+          : lastClose;
+
+        if (
+          !targetTime ||
+          targetIdx < leftBuffer ||
+          triggeredTimesRef.current.has(targetTime + i)
+        ) {
+          continue;
         }
-        triggeredTimesRef.current.add(targetTime);
+
+        if (isAnchorTooClose(targetTime, targetPrice)) {
+          triggeredTimesRef.current.add(targetTime + i);
+          continue;
+        }
+
+        triggeredTimesRef.current.add(targetTime + i);
         playAudio("positive");
         const files = memeFilesRef.current.positive;
         const filename =
@@ -77,23 +111,40 @@ export function useMemeTriggers(
         spawnMeme("positive", targetTime, targetPrice, filename);
       }
     } else if (percentChange <= nextNegMilestoneRef.current) {
-      const targetIdx = priceSnapshot.troughIndex ?? 0;
-      const targetTime = priceSnapshot.troughTime;
-      const targetPrice =
-        priceSnapshot.troughPrice ?? priceSnapshot.lastClose;
-      nextNegMilestoneRef.current =
-        Math.ceil(percentChange / 1) * 1 - 1;
+      const milestonesToCover = Math.floor(
+        (nextNegMilestoneRef.current - percentChange) / step
+      ) + 1;
+      const spawns = Math.min(milestonesToCover, MAX_CATCHUP_PER_FRAME);
 
-      if (
-        targetTime &&
-        targetIdx >= leftBuffer &&
-        !triggeredTimesRef.current.has(targetTime)
-      ) {
-        if (isAnchorTooClose(targetTime, targetPrice)) {
-          triggeredTimesRef.current.add(targetTime);
-          return;
+      nextNegMilestoneRef.current =
+        Math.ceil(percentChange / step) * step - step;
+
+      for (let i = 0; i < spawns; i++) {
+        const useTrough = i === 0;
+        const targetIdx = useTrough
+          ? (priceSnapshot.troughIndex ?? 0)
+          : (priceSnapshot.lastLogicalIndex ?? 0);
+        const targetTime = useTrough
+          ? priceSnapshot.troughTime
+          : priceSnapshot.lastTime;
+        const targetPrice = useTrough
+          ? (priceSnapshot.troughPrice ?? lastClose)
+          : lastClose;
+
+        if (
+          !targetTime ||
+          targetIdx < leftBuffer ||
+          triggeredTimesRef.current.has(targetTime + i)
+        ) {
+          continue;
         }
-        triggeredTimesRef.current.add(targetTime);
+
+        if (isAnchorTooClose(targetTime, targetPrice)) {
+          triggeredTimesRef.current.add(targetTime + i);
+          continue;
+        }
+
+        triggeredTimesRef.current.add(targetTime + i);
         playAudio("negative");
         const files = memeFilesRef.current.negative;
         const filename =
@@ -103,7 +154,7 @@ export function useMemeTriggers(
         spawnMeme("negative", targetTime, targetPrice, filename);
       }
     }
-  }, [isAnchorTooClose, phase, priceSnapshot, spawnMeme]);
+  }, [isAnchorTooClose, phase, priceSnapshot, spawnMeme, playAudio, memeFilesRef]);
 
   return { resetTriggers };
 }

@@ -28,6 +28,7 @@ export interface PriceSnapshot {
   troughIndex?: number;
   troughPrice?: number;
   troughTime?: number;
+  lastTime?: number;
   lastLogicalIndex?: number;
   getCoordinate?: (time: number, price: number) => { x: number; y: number } | null;
 }
