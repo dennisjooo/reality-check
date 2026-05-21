@@ -37,7 +37,7 @@ export function StartOverlay({ onStart }: StartOverlayProps) {
           </svg>
         </div>
         <span className="text-[10px] uppercase tracking-[0.2em] text-white/60">
-          Press Space to begin
+          Press Play to begin
         </span>
       </button>
     </div>
