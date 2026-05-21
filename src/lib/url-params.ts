@@ -28,6 +28,10 @@ export function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverri
   const to = searchParams.get("to");
   if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) overrides.toDate = to;
 
+  const memes = searchParams.get("memes");
+  if (memes === "true" || memes === "1") overrides.memesEnabled = true;
+  if (memes === "false" || memes === "0") overrides.memesEnabled = false;
+
   return overrides;
 }
 
@@ -41,6 +45,7 @@ export function buildSearchURL(params: {
   interval: string;
   fromDate?: string;
   toDate?: string;
+  memesEnabled?: boolean;
 }): string {
   const sp = new URLSearchParams();
   sp.set("q", params.symbol);
@@ -49,6 +54,7 @@ export function buildSearchURL(params: {
   sp.set("interval", params.interval);
   if (params.fromDate) sp.set("from", params.fromDate);
   if (params.toDate) sp.set("to", params.toDate);
+  if (params.memesEnabled) sp.set("memes", "true");
   return `?${sp.toString()}`;
 }
 
@@ -62,6 +68,7 @@ export function hasOverrides(overrides: SettingsOverrides): boolean {
     overrides.chartType ||
     overrides.interval ||
     overrides.fromDate ||
-    overrides.toDate
+    overrides.toDate ||
+    overrides.memesEnabled != null
   );
 }

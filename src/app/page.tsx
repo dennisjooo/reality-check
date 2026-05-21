@@ -105,6 +105,7 @@ function HomeContent() {
       interval,
       fromDate,
       toDate,
+      memesEnabled,
     });
     window.history.replaceState(null, "", url);
   }, [symbol, speed, chartType, interval, fromDate, toDate]);
