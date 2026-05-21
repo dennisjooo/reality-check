@@ -67,7 +67,7 @@ export function useMemeAudio(
 
   /**
    * Returns true when no audio is playing, or current audio has reached
-   * at least 50% of its duration (ready for next in queue).
+   * at least 80% of its duration (ready for next in queue).
    */
   const isReadyForNext = useCallback((): boolean => {
     if (readyForNextRef.current) return true;
@@ -76,7 +76,7 @@ export function useMemeAudio(
     if (audio.paused || audio.ended) { readyForNextRef.current = true; return true; }
     const { duration, currentTime } = audio;
     if (!duration || isNaN(duration)) return true;
-    if (currentTime >= duration * 0.5) { readyForNextRef.current = true; return true; }
+    if (currentTime >= duration * 0.8) { readyForNextRef.current = true; return true; }
     return false;
   }, []);
 
