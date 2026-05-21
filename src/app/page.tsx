@@ -5,8 +5,9 @@ import { useSearchParams } from "next/navigation";
 import type { AnimPhase, ChartInterval } from "@/lib/chart-types";
 import { useSettings, type SettingsOverrides } from "@/hooks/use-settings";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { Toolbar } from "@/components/toolbar";
 import { Header } from "@/components/header";
+import { ActionBar } from "@/components/action-bar";
+import { SettingsModal } from "@/components/settings-modal";
 import { ZoomChart } from "@/components/zoom-chart";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { ControlBus } from "@/lib/control-bus";
@@ -89,6 +90,7 @@ function HomeContent() {
 
   const [chartKey, setChartKey] = useState(0);
   const [phase, setPhase] = useState<AnimPhase>("idle");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const milestoneRef = useRef(0);
   const speedRef = useRef(speed);
   const searchInputRef = useRef<HTMLButtonElement>(null);
@@ -115,6 +117,10 @@ function HomeContent() {
     window.history.replaceState(null, "", url);
   }, [symbol, speed, chartType, interval, fromDate, toDate]);
 
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
+
   const handleSymbolSelect = useCallback(
     (newSymbol: string) => {
       updateSymbol(newSymbol);
@@ -134,61 +140,73 @@ function HomeContent() {
   }, []);
 
   return (
-    <div className="min-h-screen md:h-screen md:max-h-screen md:overflow-hidden bg-background text-foreground flex flex-col py-6 px-4 sm:px-8">
-      <div className="max-w-7xl w-full mx-auto flex flex-col flex-1 h-full gap-4 min-h-0">
-        <div className="shrink-0">
-          <Header />
-        </div>
+    <div className="h-dvh max-h-dvh overflow-hidden bg-background text-foreground flex flex-col px-3 sm:px-6 py-3">
+      {/* Compact editorial header */}
+      <div className="shrink-0">
+        <Header
+          symbol={symbol}
+        />
+      </div>
 
-        <main className="w-full flex-1 flex flex-col gap-4 min-h-0">
-          <div className="w-full flex-1 flex flex-col min-h-[400px] md:min-h-[300px] border border-border/60 rounded-2xl shadow-sm overflow-hidden bg-card/50 relative">
-            <ChartErrorBoundary onReset={() => setChartKey((k) => k + 1)}>
-              <ZoomChart
-                key={chartKey}
-                symbol={symbol}
-                chartType={chartType}
-                interval={interval}
-                lineColor={lineColor}
-                fromDate={fromDate}
-                toDate={toDate}
-                autoplay={shouldAutoplay}
-                speedRef={speedRef}
-                controlBus={controlBus}
-                onPhaseChange={handlePhaseChange}
-                phase={phase}
-                targetMilestone={undefined}
-                onMilestoneChange={handleMilestoneChange}
-              />
-            </ChartErrorBoundary>
-          </div>
-          
-          <div className="shrink-0 pb-2">
-            <Toolbar
+      {/* Chart — fills all available space */}
+      <main className="flex-1 min-h-0 my-2">
+        <div className="w-full h-full border border-border/60 rounded-2xl shadow-sm overflow-hidden bg-card/50 relative">
+          <ChartErrorBoundary onReset={() => setChartKey((k) => k + 1)}>
+            <ZoomChart
+              key={chartKey}
               symbol={symbol}
-              speed={speed}
               chartType={chartType}
               interval={interval}
               lineColor={lineColor}
-              phase={phase}
+              fromDate={fromDate}
+              toDate={toDate}
+              autoplay={shouldAutoplay}
               speedRef={speedRef}
-              lastMilestoneRef={milestoneRef}
               controlBus={controlBus}
-              searchInputRef={searchInputRef}
-              onSymbolSelect={handleSymbolSelect}
-              onSpeedChange={setSpeed}
-              onChartTypeChange={updateChartType}
-              onIntervalChange={updateInterval}
-              onLineColorChange={updateLineColor}
               onPhaseChange={handlePhaseChange}
-              onChartKeyBump={() => setChartKey((k) => k + 1)}
-              onTargetMilestoneSet={(m) => {
-                if (m !== undefined) {
-                }
-              }}
+              phase={phase}
+              targetMilestone={undefined}
+              onMilestoneChange={handleMilestoneChange}
             />
-          </div>
-        </main>
+          </ChartErrorBoundary>
+        </div>
+      </main>
+
+      {/* Bottom action bar: search + playback */}
+      <div className="shrink-0 pb-1">
+        <ActionBar
+          symbol={symbol}
+          phase={phase}
+          controlBus={controlBus}
+          searchInputRef={searchInputRef}
+          onSymbolSelect={handleSymbolSelect}
+          onPhaseChange={handlePhaseChange}
+          onSettingsOpen={() => setIsSettingsOpen(true)}
+        />
       </div>
+
+      {/* Settings modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        speed={speed}
+        chartType={chartType}
+        interval={interval}
+        lineColor={lineColor}
+        phase={phase}
+        speedRef={speedRef}
+        lastMilestoneRef={milestoneRef}
+        onSpeedChange={setSpeed}
+        onChartTypeChange={updateChartType}
+        onIntervalChange={updateInterval}
+        onLineColorChange={updateLineColor}
+        onPhaseChange={handlePhaseChange}
+        onChartKeyBump={() => setChartKey((k) => k + 1)}
+        onTargetMilestoneSet={(m) => {
+          if (m !== undefined) {
+          }
+        }}
+      />
     </div>
   );
 }
