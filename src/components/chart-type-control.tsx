@@ -72,7 +72,7 @@ export function ChartTypeControl({
           </button>
 
           {showColors && (
-            <div className="absolute top-full right-0 m-2 p-2 bg-popover border border-border rounded-xl shadow-lg z-50 animate-in fade-in zoom-in-95 duration-200">
+            <div className="absolute top-full right-0 m-2 p-2 bg-card/60 border border-white/[0.08] rounded-xl shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)] backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center gap-1.5">
                 {LINE_COLORS.map((c) => (
                   <button
