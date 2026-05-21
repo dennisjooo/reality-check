@@ -34,9 +34,9 @@ export function SpeedControl({
         <input
           id="speed-slider"
           type="range"
-          min={1}
-          max={10}
-          step={1}
+          min={0.5}
+          max={2}
+          step={0.1}
           value={speed}
           onChange={(e) => {
             const newSpeed = Number(e.target.value);

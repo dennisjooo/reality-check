@@ -20,6 +20,7 @@ import { ZoomChart } from "@/components/zoom-chart";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { CompletionOverlay } from "@/components/completion-overlay";
 import { StartOverlay } from "@/components/start-overlay";
+import { MemeOverlay } from "@/components/meme-overlay";
 import type { SearchResult } from "@/components/asset-search";
 import { ControlBus } from "@/lib/control-bus";
 
@@ -45,6 +46,8 @@ function HomeContent() {
     updateLineColor,
     updateFromDate,
     updateToDate,
+    memesEnabled,
+    setMemesEnabled,
   } = useSettings(overrides);
 
   const [chartKey, setChartKey] = useState(0);
@@ -53,8 +56,38 @@ function HomeContent() {
   const [priceSnapshot, setPriceSnapshot] = useState<PriceSnapshot | null>(null);
   const speedRef = useRef(speed);
   const searchInputRef = useRef<HTMLButtonElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const hasPlayedAudioRef = useRef(false);
+
+  useEffect(() => {
+    hasPlayedAudioRef.current = false;
+  }, [chartKey]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      audioRef.current = new Audio('/audio/audio.mp3');
+      audioRef.current.loop = true;
+    }
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const controlBus = useMemo(() => new ControlBus(), []);
+
+  useEffect(() => {
+    return controlBus.on("reset", () => {
+      hasPlayedAudioRef.current = false;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    });
+  }, [controlBus]);
 
   useKeyboardShortcuts({
     controlBus,
@@ -79,6 +112,31 @@ function HomeContent() {
   useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = Math.max(0.25, Math.min(speed, 4.0));
+    }
+  }, [speed]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (phase === "animating" && memesEnabled) {
+      if (!hasPlayedAudioRef.current) {
+        hasPlayedAudioRef.current = true;
+        audio.currentTime = 0;
+      }
+      
+      audio.volume = 0.6;
+      if (audio.paused) {
+        audio.play().catch((err) => console.log("Audio playback prevented:", err));
+      }
+    } else {
+      if (!audio.paused) audio.pause();
+    }
+  }, [phase, memesEnabled]);
 
   const handleSymbolSelect = useCallback(
     (newSymbol: string, result?: SearchResult) => {
@@ -143,6 +201,9 @@ function HomeContent() {
               onPriceSnapshotChange={setPriceSnapshot}
             />
           </ChartErrorBoundary>
+          {memesEnabled && (
+            <MemeOverlay priceSnapshot={priceSnapshot} phase={phase} speed={speed} />
+          )}
           <CompletionOverlay visible={phase === "complete"} />
           {phase === "idle" && (
             <StartOverlay
@@ -185,6 +246,8 @@ function HomeContent() {
         onLineColorChange={updateLineColor}
         onPhaseChange={handlePhaseChange}
         onChartKeyBump={() => setChartKey((k) => k + 1)}
+        memesEnabled={memesEnabled}
+        onMemesEnabledChange={setMemesEnabled}
       />
     </div>
   );

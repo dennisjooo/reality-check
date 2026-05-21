@@ -48,19 +48,52 @@ export function getMilestoneIndex(visibleBars: number, milestones: readonly numb
  * Used during animation for throttled UI updates.
  */
 export function buildRollingSnapshot(
-  quotes: { close: number; high: number; low: number }[],
+  quotes: { close: number; high: number; low: number; time?: number }[],
   fromIdx: number,
   lastBarIndex: number,
   visibleBars: number,
-): { firstClose: number; lastClose: number; high: number; low: number; points: number } | null {
+): { 
+  firstClose: number; 
+  lastClose: number; 
+  high: number; 
+  low: number; 
+  points: number; 
+  x?: number; 
+  y?: number; 
+  peakIndex?: number;
+  peakPrice?: number;
+  peakTime?: number;
+  troughIndex?: number;
+  troughPrice?: number;
+  troughTime?: number;
+  lastLogicalIndex?: number; 
+  getCoordinate?: (time: number, p: number) => {x: number, y: number} | null 
+} | null {
   const firstBar = quotes[fromIdx];
   const lastBar = quotes[lastBarIndex];
   if (!firstBar || !lastBar) return null;
+
+  let peakIndex = fromIdx;
+  let troughIndex = fromIdx;
+  let peakClose = firstBar.close;
+  let troughClose = firstBar.close;
+  for (let i = fromIdx + 1; i <= lastBarIndex; i++) {
+    const c = quotes[i].close;
+    if (c > peakClose) { peakClose = c; peakIndex = i; }
+    if (c < troughClose) { troughClose = c; troughIndex = i; }
+  }
+
   return {
     firstClose: firstBar.close,
     lastClose: lastBar.close,
     high: lastBar.high,
     low: firstBar.low,
     points: Math.round(visibleBars),
+    peakIndex,
+    peakPrice: peakClose,
+    peakTime: quotes[peakIndex]?.time,
+    troughIndex,
+    troughPrice: troughClose,
+    troughTime: quotes[troughIndex]?.time,
   };
 }

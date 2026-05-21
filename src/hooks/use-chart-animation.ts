@@ -99,29 +99,51 @@ export function useChartAnimation({
       manualTargetBarsRef.current = null;
       cancelCurrentAnimationFrame();
 
-      chart.timeScale().fitContent();
-      chart.applyOptions({ handleScroll: true, handleScale: true });
-
-      if (seriesRef.current) {
+      // Install a dynamic provider BEFORE fitContent so the chart always
+      // computes an outlier-safe Y range for whatever bars are visible —
+      // both for the initial full-view render and for later user zoom/scroll.
+      const quotes = quotesRef.current;
+      if (seriesRef.current && quotes.length > 0) {
         seriesRef.current.applyOptions({
-          autoscaleInfoProvider: undefined,
+          autoscaleInfoProvider: () => {
+            const vr = chart.timeScale().getVisibleLogicalRange();
+            if (!vr) return null;
+            const from = Math.max(0, Math.floor(vr.from));
+            const to = Math.min(quotes.length - 1, Math.ceil(vr.to));
+            const range = computeSafeRange(quotes, from, to);
+            if (!range) return null;
+            return { priceRange: { minValue: range.min, maxValue: range.max } };
+          },
         });
       }
+
+      chart.timeScale().fitContent();
+      chart.applyOptions({ handleScroll: true, handleScale: true });
 
       milestoneIndexRef.current = MILESTONES.length;
       onMilestoneChange?.(MILESTONES.length);
 
-      const quotes = quotesRef.current;
       if (onPriceSnapshotChange && quotes.length > 0) {
         const snapshot = buildRollingSnapshot(quotes, 0, quotes.length - 1, quotes.length);
         if (snapshot) {
+          snapshot.lastLogicalIndex = quotes.length - 1;
+          if (seriesRef.current) {
+            snapshot.getCoordinate = (barTime: number, p: number) => {
+              if (!chartRef.current || !seriesRef.current) return null;
+              const ts = chartRef.current.timeScale();
+              const cx = ts.timeToCoordinate(barTime as any);
+              const cy = seriesRef.current.priceToCoordinate(p);
+              if (cx !== null && cy !== null) return { x: cx, y: cy };
+              return null;
+            };
+          }
           onPriceSnapshotChange(snapshot);
         }
       }
 
       onPhaseChange("complete");
     },
-    [cancelCurrentAnimationFrame, onMilestoneChange, onPhaseChange, onPriceSnapshotChange, quotesRef, seriesRef]
+    [cancelCurrentAnimationFrame, chartRef, onMilestoneChange, onPhaseChange, onPriceSnapshotChange, quotesRef, seriesRef]
   );
 
   const stepAnimation = useCallback(
@@ -182,6 +204,26 @@ export function useChartAnimation({
         const fromIdx = Math.max(0, Math.floor(fromFloat));
         const snapshot = buildRollingSnapshot(quotes, fromIdx, lastBarIndex, currentVisibleBarsRef.current);
         if (snapshot) {
+          if (seriesRef.current) {
+            const timeScale = chart.timeScale();
+            // Lightweight charts types sometimes need 'any' for time casting
+            const time = quotes[lastBarIndex].time as any;
+            const x = timeScale.timeToCoordinate(time);
+            const y = seriesRef.current.priceToCoordinate(quotes[lastBarIndex].close);
+            if (x !== null && y !== null) {
+              snapshot.x = x;
+              snapshot.y = y;
+            }
+            snapshot.lastLogicalIndex = lastBarIndex;
+            snapshot.getCoordinate = (barTime: number, p: number) => {
+              if (!chartRef.current || !seriesRef.current) return null;
+              const ts = chartRef.current.timeScale();
+              const cx = ts.timeToCoordinate(barTime as any);
+              const cy = seriesRef.current.priceToCoordinate(p);
+              if (cx !== null && cy !== null) return { x: cx, y: cy };
+              return null;
+            };
+          }
           onPriceSnapshotChange(snapshot);
         }
       }

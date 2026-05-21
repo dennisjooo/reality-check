@@ -8,6 +8,7 @@ import type { ChartType, ChartInterval, AnimPhase } from "@/lib/chart-types";
 import { SpeedControl } from "@/components/speed-control";
 import { IntervalControl } from "@/components/interval-control";
 import { ChartTypeControl } from "@/components/chart-type-control";
+import { Switch } from "@/components/ui/switch";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ interface SettingsModalProps {
   onLineColorChange: (color: string) => void;
   onPhaseChange: (phase: AnimPhase) => void;
   onChartKeyBump: () => void;
+  memesEnabled: boolean;
+  onMemesEnabledChange: (enabled: boolean) => void;
 }
 
 export function SettingsModal({
@@ -41,6 +44,8 @@ export function SettingsModal({
   onLineColorChange,
   onPhaseChange,
   onChartKeyBump,
+  memesEnabled,
+  onMemesEnabledChange,
 }: SettingsModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -122,6 +127,19 @@ export function SettingsModal({
                 lineColor={lineColor}
                 onLineColorChange={onLineColorChange}
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wider">
+                Fun Stuff
+              </span>
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-sm font-medium text-foreground/90">Enable Memes & Sounds</span>
+                <Switch
+                  checked={memesEnabled}
+                  onCheckedChange={onMemesEnabledChange}
+                />
+              </label>
             </div>
           </div>
         </div>

@@ -97,13 +97,15 @@ export function computeSafeRange(
   const lowerFence = q1 - 4 * iqr;
   const upperFence = q3 + 4 * iqr;
 
-  // Only apply level-filtering when the raw max/min ratio is extreme (>50×)
-  // AND the filter would only remove a small minority of bars (<10%).
-  // If many bars are "outliers," it's a legitimate trend (e.g. AAPL $1→$300),
-  // not bad data (e.g. IDR/USD with a few erroneous bars at 1.0).
-  const rawMin = closes[0];
-  const rawMax = closes[closes.length - 1];
-  const magnitudeRatio = rawMin > 0 ? rawMax / rawMin : 0;
+  // Apply level-filtering when any OHLC field is wildly out of range (>50×
+  // the median close). Checks all fields so bogus open/high values trigger
+  // filtering even when close is normal. Only removes a small minority (<10%).
+  const medianClose = closes[Math.floor(closes.length * 0.5)];
+  let maxOHLC = 0;
+  for (const q of slice) {
+    maxOHLC = Math.max(maxOHLC, q.open, q.high, q.close);
+  }
+  const magnitudeRatio = medianClose > 0 ? maxOHLC / medianClose : 0;
 
   let working = slice;
   if (magnitudeRatio > 50 && iqr > 0) {
@@ -151,6 +153,78 @@ export function computeSafeRange(
     min: safeLow - padding,
     max: safeHigh + padding,
   };
+}
+
+/**
+ * Clamp extreme outlier bars in the dataset so the chart never sees values
+ * that are orders of magnitude away from the bulk of the data.
+ *
+ * Builds IQR fences from close prices (the most reliable field), then checks
+ * whether any bar's OHLC values breach those fences. The gate triggers when
+ * the max of ANY OHLC field relative to the median close exceeds 50× — this
+ * catches Yahoo Finance glitches where open/high are bogus (e.g. 0.11111111)
+ * even when close is perfectly normal.
+ *
+ * Returns a new array (or the original reference when nothing changed).
+ */
+export function sanitizeQuotes(quotes: ChartData[]): ChartData[] {
+  if (quotes.length < 20) return quotes;
+
+  const closes = quotes.map((q) => q.close).sort((a, b) => a - b);
+  const q1 = closes[Math.floor(closes.length * 0.25)];
+  const q3 = closes[Math.floor(closes.length * 0.75)];
+  const iqr = q3 - q1;
+  if (iqr <= 0) return quotes;
+
+  const medianClose = closes[Math.floor(closes.length * 0.5)];
+
+  // Check if ANY OHLC field has values wildly out of range compared to median
+  // close. This catches glitches where open/high are bogus but close is fine.
+  let maxOHLC = 0;
+  for (const q of quotes) {
+    maxOHLC = Math.max(maxOHLC, q.open, q.high, q.close);
+  }
+  const magnitudeRatio = medianClose > 0 ? maxOHLC / medianClose : 0;
+  if (magnitudeRatio <= 50) return quotes;
+
+  const lo = q1 - 4 * iqr;
+  const hi = q3 + 4 * iqr;
+
+  // Compute the median bar range from non-outlier bars so we can reconstruct
+  // glitched bars with a realistic spread around their (correct) close.
+  const normalRanges = quotes
+    .filter((q) => q.high <= hi && q.low >= lo && q.open <= hi && q.open >= lo)
+    .map((q) => q.high - q.low)
+    .sort((a, b) => a - b);
+  const medianBarRange =
+    normalRanges.length > 0 ? normalRanges[Math.floor(normalRanges.length / 2)] : iqr * 0.1;
+
+  const outlierCount = quotes.filter(
+    (q) => q.close < lo || q.close > hi || q.high > hi || q.low < lo || q.open > hi || q.open < lo
+  ).length;
+  if (outlierCount === 0) return quotes;
+  if (outlierCount / quotes.length >= 0.1) return quotes;
+
+  let changed = false;
+  const result = quotes.map((q) => {
+    const needsClamp =
+      q.close < lo || q.close > hi || q.high > hi || q.low < lo || q.open > hi || q.open < lo;
+    if (!needsClamp) return q;
+    changed = true;
+    // Reconstruct the bar around the (usually correct) close price using
+    // the median bar range, so bogus spikes become normal-looking bars.
+    const safeClose = Math.max(lo, Math.min(q.close, hi));
+    const safeOpen = q.open > hi || q.open < lo ? safeClose : q.open;
+    return {
+      ...q,
+      open: safeOpen,
+      high: Math.max(safeClose, safeOpen) + medianBarRange * 0.5,
+      low: Math.min(safeClose, safeOpen) - medianBarRange * 0.5,
+      close: safeClose,
+    };
+  });
+
+  return changed ? result : quotes;
 }
 
 /**

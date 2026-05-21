@@ -5,6 +5,7 @@ import type { ChartData, ChartInterval } from "@/lib/chart-types";
 import type { ChartType } from "@/lib/chart-types";
 import { CHUNK_YEARS } from "@/lib/chart-constants";
 import { toCandlestickData, toLineData, toVolumeData } from "@/lib/chart-series";
+import { sanitizeQuotes } from "@/lib/chart-utils";
 import type { IChartApi } from "lightweight-charts";
 
 interface UseChartDataOptions {
@@ -136,8 +137,8 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
 
         if (newQuotes.length > 0) {
           newQuotes.sort((a, b) => a.time - b.time);
-          quotesRef.current = [...newQuotes, ...quotesRef.current];
-          oldestTimestampRef.current = newQuotes[0].time;
+          quotesRef.current = sanitizeQuotes([...newQuotes, ...quotesRef.current]);
+          oldestTimestampRef.current = quotesRef.current[0].time;
           onDataChange?.(quotesRef.current);
 
           if (seriesRef.current && chartRef.current) {
@@ -179,7 +180,7 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
   );
 
   const resetData = useCallback((quotes: ChartData[]) => {
-    quotesRef.current = quotes;
+    quotesRef.current = sanitizeQuotes(quotes);
     hasMoreDataRef.current = true;
     oldestTimestampRef.current = quotes[0]?.time ?? null;
     prefetchedChunkRef.current = null;

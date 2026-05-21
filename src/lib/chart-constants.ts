@@ -66,4 +66,5 @@ export interface PersistedSettings {
   fromDate?: string;
   toDate?: string;
   savedAt?: number;
+  memesEnabled?: boolean;
 }

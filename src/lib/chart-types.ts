@@ -20,6 +20,16 @@ export interface PriceSnapshot {
   high: number;
   low: number;
   points: number;
+  x?: number;
+  y?: number;
+  peakIndex?: number;
+  peakPrice?: number;
+  peakTime?: number;
+  troughIndex?: number;
+  troughPrice?: number;
+  troughTime?: number;
+  lastLogicalIndex?: number;
+  getCoordinate?: (time: number, price: number) => { x: number; y: number } | null;
 }
 
 export type ChartType = "candlestick" | "line";

@@ -68,6 +68,9 @@ export function useSettings(overrides?: SettingsOverrides) {
   const [toDate, setToDate] = useState<string | undefined>(
     overrides?.toDate ?? saved.toDate
   );
+  const [memesEnabled, setMemesEnabled] = useState<boolean>(
+    saved.memesEnabled ?? false
+  );
   const isDefault = (overrides?.symbol ?? saved.symbol ?? DEFAULT_SYMBOL) === DEFAULT_SYMBOL;
   const [assetName, setAssetName] = useState<string | undefined>(
     saved.assetName ?? (isDefault ? DEFAULT_ASSET_META.name : undefined)
@@ -80,8 +83,8 @@ export function useSettings(overrides?: SettingsOverrides) {
   );
 
   useEffect(() => {
-    saveSettings({ speed, chartType, lineColor, interval, fromDate, toDate });
-  }, [speed, chartType, lineColor, interval, fromDate, toDate]);
+    saveSettings({ speed, chartType, lineColor, interval, fromDate, toDate, memesEnabled });
+  }, [speed, chartType, lineColor, interval, fromDate, toDate, memesEnabled]);
 
   const updateSymbol = useCallback(
     (newSymbol: string, meta?: { name?: string; type?: string; exchange?: string }) => {
@@ -142,5 +145,7 @@ export function useSettings(overrides?: SettingsOverrides) {
     updateLineColor,
     updateFromDate,
     updateToDate,
+    memesEnabled,
+    setMemesEnabled,
   };
 }
