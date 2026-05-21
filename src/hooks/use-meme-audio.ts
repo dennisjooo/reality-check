@@ -14,6 +14,7 @@ export function useMemeAudio(
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioFadeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioFadeDelayRef = useRef<NodeJS.Timeout | null>(null);
+  const readyForNextRef = useRef<boolean>(true);
 
   const resetAudio = useCallback(() => {
     if (audioFadeDelayRef.current) {
@@ -29,6 +30,7 @@ export function useMemeAudio(
       audioRef.current.currentTime = 0;
       audioRef.current = null;
     }
+    readyForNextRef.current = true;
   }, []);
 
   const playAudio = useCallback(
@@ -40,6 +42,8 @@ export function useMemeAudio(
       if (audioRef.current) {
         audioRef.current.pause();
       }
+
+      readyForNextRef.current = false;
 
       const audioFiles =
         type === "positive"
@@ -60,6 +64,21 @@ export function useMemeAudio(
     },
     [memeFilesRef]
   );
+
+  /**
+   * Returns true when no audio is playing, or current audio has reached
+   * at least 50% of its duration (ready for next in queue).
+   */
+  const isReadyForNext = useCallback((): boolean => {
+    if (readyForNextRef.current) return true;
+    const audio = audioRef.current;
+    if (!audio) { readyForNextRef.current = true; return true; }
+    if (audio.paused || audio.ended) { readyForNextRef.current = true; return true; }
+    const { duration, currentTime } = audio;
+    if (!duration || isNaN(duration)) return true;
+    if (currentTime >= duration * 0.5) { readyForNextRef.current = true; return true; }
+    return false;
+  }, []);
 
   // Audio fade-out after each trigger (audio is ephemeral, images are not)
   useEffect(() => {
@@ -93,8 +112,9 @@ export function useMemeAudio(
     if (phase === "idle" && audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
+      readyForNextRef.current = true;
     }
   }, [phase]);
 
-  return { playAudio, resetAudio };
+  return { playAudio, resetAudio, isReadyForNext };
 }

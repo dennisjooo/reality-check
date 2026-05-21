@@ -32,7 +32,7 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
     negativeAudio: string[];
   }>({ positive: [], negative: [], positiveAudio: [], negativeAudio: [] });
 
-  const { playAudio, resetAudio } = useMemeAudio(phase, memeFilesRef);
+  const { playAudio, resetAudio, isReadyForNext } = useMemeAudio(phase, memeFilesRef);
 
   const spawnMeme = useCallback(
     (
@@ -93,7 +93,8 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
     spawnMeme,
     playAudio,
     isAnchorTooClose,
-    memeFilesRef
+    memeFilesRef,
+    isReadyForNext
   );
 
   const resetMemeState = useCallback(() => {
