@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -67,6 +67,15 @@ export function DateRangeInput({
             {from ? format(from, "MMM d, yyyy") : "Start"}
           </span>
         </PopoverTrigger>
+        {from && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDateChange(undefined, toDateStr); }}
+            className="control-bounce flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/15 hover:text-primary"
+            title="Clear start date"
+          >
+            <X className="size-3" />
+          </button>
+        )}
         <PopoverContent
           side="top"
           align="end"
@@ -98,6 +107,15 @@ export function DateRangeInput({
           </span>
           {!from && !to && <CalendarIcon className="size-3.5 sm:hidden" />}
         </PopoverTrigger>
+        {to && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDateChange(fromDate, undefined); }}
+            className="control-bounce flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/15 hover:text-primary"
+            title="Clear end date"
+          >
+            <X className="size-3" />
+          </button>
+        )}
         <PopoverContent
           side="top"
           align="end"
@@ -113,6 +131,7 @@ export function DateRangeInput({
           />
         </PopoverContent>
       </Popover>
-    </div>
+
+      </div>
   );
 }
