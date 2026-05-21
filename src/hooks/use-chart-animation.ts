@@ -8,6 +8,7 @@ import { computeSafeRange } from "@/lib/chart-utils";
 import { computeNextVisibleBars, getMilestoneIndex, buildRollingSnapshot } from "@/lib/animation-math";
 import { ControlBus } from "@/lib/control-bus";
 import { useControlBusSubscription } from "@/hooks/use-control-bus-subscription";
+import { attachGetCoordinate } from "@/lib/animation-snapshot";
 
 interface UseChartAnimationOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
@@ -125,18 +126,8 @@ export function useChartAnimation({
 
       if (onPriceSnapshotChange && quotes.length > 0) {
         const snapshot = buildRollingSnapshot(quotes, 0, quotes.length - 1, quotes.length);
-        if (snapshot) {
-          snapshot.lastLogicalIndex = quotes.length - 1;
-          if (seriesRef.current) {
-            snapshot.getCoordinate = (barTime: number, p: number) => {
-              if (!chartRef.current || !seriesRef.current) return null;
-              const ts = chartRef.current.timeScale();
-              const cx = ts.timeToCoordinate(barTime as any);
-              const cy = seriesRef.current.priceToCoordinate(p);
-              if (cx !== null && cy !== null) return { x: cx, y: cy };
-              return null;
-            };
-          }
+        if (snapshot && seriesRef.current) {
+          attachGetCoordinate(snapshot, chart, seriesRef.current, quotes.length - 1);
           onPriceSnapshotChange(snapshot);
         }
       }
@@ -214,15 +205,7 @@ export function useChartAnimation({
               snapshot.x = x;
               snapshot.y = y;
             }
-            snapshot.lastLogicalIndex = lastBarIndex;
-            snapshot.getCoordinate = (barTime: number, p: number) => {
-              if (!chartRef.current || !seriesRef.current) return null;
-              const ts = chartRef.current.timeScale();
-              const cx = ts.timeToCoordinate(barTime as any);
-              const cy = seriesRef.current.priceToCoordinate(p);
-              if (cx !== null && cy !== null) return { x: cx, y: cy };
-              return null;
-            };
+            attachGetCoordinate(snapshot, chart, seriesRef.current, lastBarIndex);
           }
           onPriceSnapshotChange(snapshot);
         }

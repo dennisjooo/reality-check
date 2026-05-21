@@ -11,8 +11,10 @@ import {
 import { useSearchParams } from "next/navigation";
 import type { AnimPhase, PriceSnapshot } from "@/lib/chart-types";
 import { useSettings } from "@/hooks/use-settings";
-import { parseUrlOverrides, buildSearchURL } from "@/lib/url-params";
+import { parseUrlOverrides } from "@/lib/url-params";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useBackgroundAudio } from "@/hooks/use-background-audio";
+import { useUrlSync } from "@/hooks/use-url-sync";
 import { Header } from "@/components/header";
 import { ActionBar } from "@/components/action-bar";
 import { SettingsModal } from "@/components/settings-modal";
@@ -56,38 +58,12 @@ function HomeContent() {
   const [priceSnapshot, setPriceSnapshot] = useState<PriceSnapshot | null>(null);
   const speedRef = useRef(speed);
   const searchInputRef = useRef<HTMLButtonElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const hasPlayedAudioRef = useRef(false);
-
-  useEffect(() => {
-    hasPlayedAudioRef.current = false;
-  }, [chartKey]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      audioRef.current = new Audio('/audio/audio.mp3');
-      audioRef.current.loop = true;
-    }
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        audioRef.current = null;
-      }
-    };
-  }, []);
 
   const controlBus = useMemo(() => new ControlBus(), []);
 
-  useEffect(() => {
-    return controlBus.on("reset", () => {
-      hasPlayedAudioRef.current = false;
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    });
-  }, [controlBus]);
+  useBackgroundAudio({ phase, memesEnabled, speed, chartKey, controlBus });
+
+  useUrlSync({ symbol, speed, chartType, interval, fromDate, toDate, memesEnabled });
 
   useKeyboardShortcuts({
     controlBus,
@@ -98,46 +74,8 @@ function HomeContent() {
   });
 
   useEffect(() => {
-    const url = buildSearchURL({
-      symbol,
-      speed,
-      chartType,
-      interval,
-      fromDate,
-      toDate,
-      memesEnabled,
-    });
-    window.history.replaceState(null, "", url);
-  }, [symbol, speed, chartType, interval, fromDate, toDate]);
-
-  useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = Math.max(0.25, Math.min(speed, 4.0));
-    }
-  }, [speed]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (phase === "animating" && memesEnabled) {
-      if (!hasPlayedAudioRef.current) {
-        hasPlayedAudioRef.current = true;
-        audio.currentTime = 0;
-      }
-      
-      audio.volume = 0.6;
-      if (audio.paused) {
-        audio.play().catch((err) => console.log("Audio playback prevented:", err));
-      }
-    } else {
-      if (!audio.paused) audio.pause();
-    }
-  }, [phase, memesEnabled]);
 
   const handleSymbolSelect = useCallback(
     (newSymbol: string, result?: SearchResult) => {
