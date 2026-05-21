@@ -11,7 +11,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import type { AnimPhase, PriceSnapshot } from "@/lib/chart-types";
 import { useSettings } from "@/hooks/use-settings";
-import { parseUrlOverrides, buildSearchURL, hasOverrides } from "@/lib/url-params";
+import { parseUrlOverrides, buildSearchURL } from "@/lib/url-params";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { Header } from "@/components/header";
 import { ActionBar } from "@/components/action-bar";
@@ -25,7 +25,7 @@ import { ControlBus } from "@/lib/control-bus";
 function HomeContent() {
   const searchParams = useSearchParams();
   const overrides = parseUrlOverrides(searchParams);
-  const shouldAutoplay = hasOverrides(overrides);
+  // don't autoplay from URL params
 
   const {
     symbol,
@@ -135,7 +135,7 @@ function HomeContent() {
               lineColor={lineColor}
               fromDate={fromDate}
               toDate={toDate}
-              autoplay={shouldAutoplay}
+              autoplay={false}
               speedRef={speedRef}
               controlBus={controlBus}
               onPhaseChange={handlePhaseChange}
