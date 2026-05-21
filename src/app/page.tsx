@@ -118,7 +118,7 @@ function HomeContent() {
         />
       </div>
 
-      <main className="flex-1 min-h-0 my-2">
+      <main className={`flex-1 min-h-0 my-2 transition-all duration-300 ${isSettingsOpen ? "pointer-events-none scale-[0.98] blur-sm opacity-60" : ""}`}>
         <div
           className="ambient-card relative h-full w-full overflow-hidden rounded-3xl"
         >
