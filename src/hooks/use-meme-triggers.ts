@@ -23,13 +23,13 @@ export function useMemeTriggers(
     negativeAudio: string[];
   }>
 ) {
-  const nextPosMilestoneRef = useRef<number>(3);
-  const nextNegMilestoneRef = useRef<number>(-3);
+  const nextPosMilestoneRef = useRef<number>(1);
+  const nextNegMilestoneRef = useRef<number>(-1);
   const triggeredTimesRef = useRef<Set<number>>(new Set());
 
   const resetTriggers = useCallback(() => {
-    nextPosMilestoneRef.current = 3;
-    nextNegMilestoneRef.current = -3;
+    nextPosMilestoneRef.current = 1;
+    nextNegMilestoneRef.current = -1;
     triggeredTimesRef.current.clear();
   }, []);
 
@@ -54,7 +54,7 @@ export function useMemeTriggers(
       const targetPrice =
         priceSnapshot.peakPrice ?? priceSnapshot.lastClose;
       nextPosMilestoneRef.current =
-        Math.floor(percentChange / 3) * 3 + 3;
+        Math.floor(percentChange / 1) * 1 + 1;
 
       if (
         targetTime &&
@@ -82,7 +82,7 @@ export function useMemeTriggers(
       const targetPrice =
         priceSnapshot.troughPrice ?? priceSnapshot.lastClose;
       nextNegMilestoneRef.current =
-        Math.ceil(percentChange / 3) * 3 - 3;
+        Math.ceil(percentChange / 1) * 1 - 1;
 
       if (
         targetTime &&

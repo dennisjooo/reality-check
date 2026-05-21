@@ -100,7 +100,7 @@ export function isAnchorTooClose(
   const target = getCoordinate(targetTime, targetPrice);
   if (!target) return false;
 
-  const minAnchorDistance = 90;
+  const minAnchorDistance = 50;
   const minAnchorDistanceSq = minAnchorDistance * minAnchorDistance;
 
   for (const existing of memes) {
