@@ -68,6 +68,9 @@ export function SettingsModal({
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
       >
         <div ref={panelRef} className="settings-modal-panel">
           {/* Header */}

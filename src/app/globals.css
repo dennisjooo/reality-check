@@ -159,13 +159,11 @@ body::after {
 }
 
 .ambient-card {
-  border: 1px solid oklch(1 0 0 / 6%);
-  background: oklch(from var(--card) l c h / 32%);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid oklch(1 0 0 / 8%);
+  background: var(--card);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 4%),
-    0 14px 45px oklch(0 0 0 / 18%);
+    0 14px 45px oklch(0 0 0 / 22%);
 }
 
 .control-bounce {
@@ -216,23 +214,21 @@ body::after {
 }
 
 .settings-modal-container--open {
-  pointer-events: auto;
   opacity: 1;
 }
 
 .settings-modal-panel {
   width: min(380px, 90vw);
-  background: oklch(from var(--card) l c h / 60%);
-  border: 1px solid oklch(1 0 0 / 8%);
+  background: var(--card);
+  border: 1px solid oklch(1 0 0 / 10%);
   border-radius: 1.25rem;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   box-shadow:
-    0 18px 42px -24px rgba(0, 0, 0, 0.75),
+    0 24px 48px -12px rgba(0, 0, 0, 0.65),
     inset 0 1px 0 oklch(1 0 0 / 6%);
   transform: scale(0.95) translateY(8px);
   transition: transform 0.28s cubic-bezier(0.22, 1.15, 0.32, 1);
   overflow: visible;
+  pointer-events: auto;
 }
 
 .settings-modal-container--open .settings-modal-panel {

@@ -34,7 +34,7 @@ export function ActionBar({
   onSettingsOpen,
 }: ActionBarProps) {
   return (
-    <div className="mx-auto w-full max-w-3xl rounded-full border border-white/[0.08] bg-card/60 px-2 py-2 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+    <div className="mx-auto w-full max-w-3xl rounded-full border border-white/[0.08] bg-card px-2 py-2 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)]">
       <div className="flex items-center justify-between gap-1">
         <div className="min-w-0 max-w-[40%] flex-1">
           <AssetSearch

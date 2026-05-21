@@ -80,7 +80,7 @@ export function DateRangeInput({
           side="top"
           align="end"
           sideOffset={8}
-          className="w-auto rounded-xl border-white/[0.08] bg-card/60 p-0 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)] backdrop-blur-xl"
+          className="w-auto rounded-xl border-white/[0.08] bg-card p-0 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)]"
         >
           <Calendar
             mode="single"
@@ -120,7 +120,7 @@ export function DateRangeInput({
           side="top"
           align="end"
           sideOffset={8}
-          className="w-auto rounded-xl border-white/[0.08] bg-card/60 p-0 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)] backdrop-blur-xl"
+          className="w-auto rounded-xl border-white/[0.08] bg-card p-0 shadow-[0_18px_42px_-24px_rgba(0,0,0,0.75)]"
         >
           <Calendar
             mode="single"

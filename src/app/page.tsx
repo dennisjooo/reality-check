@@ -202,7 +202,7 @@ function HomeContent() {
         </div>
       </main>
 
-      <div className="relative z-50 shrink-0 pb-1 pt-1">
+      <div className={`relative z-50 shrink-0 pb-1 pt-1 transition-all duration-300 ${isSettingsOpen ? "pointer-events-none scale-[0.98] blur-sm opacity-60" : ""}`}>
         <ActionBar
           symbol={symbol}
           phase={phase}
