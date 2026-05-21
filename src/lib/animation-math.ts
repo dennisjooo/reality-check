@@ -43,6 +43,37 @@ export function getMilestoneIndex(visibleBars: number, milestones: readonly numb
   return index;
 }
 
+interface LocalExtreme {
+  index: number;
+  price: number;
+  time: number;
+}
+
+/**
+ * Find the peak/trough within a sub-range of quotes.
+ */
+function findSegmentExtremes(
+  quotes: { close: number; time?: number }[],
+  from: number,
+  to: number
+): { peak: LocalExtreme; trough: LocalExtreme } {
+  let peakIdx = from;
+  let troughIdx = from;
+  let peakVal = quotes[from].close;
+  let troughVal = quotes[from].close;
+  for (let i = from + 1; i <= to; i++) {
+    const c = quotes[i].close;
+    if (c > peakVal) { peakVal = c; peakIdx = i; }
+    if (c < troughVal) { troughVal = c; troughIdx = i; }
+  }
+  return {
+    peak: { index: peakIdx, price: peakVal, time: quotes[peakIdx]?.time ?? 0 },
+    trough: { index: troughIdx, price: troughVal, time: quotes[troughIdx]?.time ?? 0 },
+  };
+}
+
+const NUM_SEGMENTS = 4;
+
 /**
  * Build a rolling price snapshot from a slice of quotes.
  * Used during animation for throttled UI updates.
@@ -67,7 +98,9 @@ export function buildRollingSnapshot(
   troughPrice?: number;
   troughTime?: number;
   lastTime?: number;
-  lastLogicalIndex?: number; 
+  lastLogicalIndex?: number;
+  localPeaks?: LocalExtreme[];
+  localTroughs?: LocalExtreme[];
   getCoordinate?: (time: number, p: number) => {x: number, y: number} | null 
 } | null {
   const firstBar = quotes[fromIdx];
@@ -84,6 +117,24 @@ export function buildRollingSnapshot(
     if (c < troughClose) { troughClose = c; troughIndex = i; }
   }
 
+  // Compute local peaks/troughs across segments for spreading memes over
+  // the full visible range (including older data on the left).
+  let localPeaks: LocalExtreme[] | undefined;
+  let localTroughs: LocalExtreme[] | undefined;
+  const range = lastBarIndex - fromIdx;
+  if (range >= NUM_SEGMENTS * 10) {
+    const segSize = Math.floor(range / NUM_SEGMENTS);
+    localPeaks = [];
+    localTroughs = [];
+    for (let s = 0; s < NUM_SEGMENTS; s++) {
+      const segFrom = fromIdx + s * segSize;
+      const segTo = s === NUM_SEGMENTS - 1 ? lastBarIndex : segFrom + segSize - 1;
+      const { peak, trough } = findSegmentExtremes(quotes, segFrom, segTo);
+      localPeaks.push(peak);
+      localTroughs.push(trough);
+    }
+  }
+
   return {
     firstClose: firstBar.close,
     lastClose: lastBar.close,
@@ -97,5 +148,7 @@ export function buildRollingSnapshot(
     troughPrice: troughClose,
     troughTime: quotes[troughIndex]?.time,
     lastTime: lastBar.time,
+    localPeaks,
+    localTroughs,
   };
 }

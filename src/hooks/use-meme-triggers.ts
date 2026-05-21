@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import type { PriceSnapshot } from "@/lib/chart-types";
+import type { PriceSnapshot, LocalExtreme } from "@/lib/chart-types";
 import type { StickyMeme } from "@/lib/meme-geometry";
 
 /**
@@ -19,7 +19,24 @@ function computeStep(snapshot: PriceSnapshot): number {
   return 1;
 }
 
+/**
+ * Pick an anchor from localPeaks/localTroughs, cycling through segments
+ * to spread memes across the entire visible range (including older data).
+ */
+function pickLocalAnchor(
+  extremes: LocalExtreme[] | undefined,
+  counter: number,
+  leftBuffer: number
+): { time: number; price: number; index: number } | null {
+  if (!extremes || extremes.length === 0) return null;
+  const idx = counter % extremes.length;
+  const e = extremes[idx];
+  if (e.index < leftBuffer || !e.time) return null;
+  return { time: e.time, price: e.price, index: e.index };
+}
+
 const MAX_CATCHUP_PER_FRAME = 3;
+const CATCHUP_STAGGER_MS = 350;
 
 export function useMemeTriggers(
   priceSnapshot: PriceSnapshot | null,
@@ -44,12 +61,17 @@ export function useMemeTriggers(
   const nextNegMilestoneRef = useRef<number>(-1);
   const triggeredTimesRef = useRef<Set<number>>(new Set());
   const stepRef = useRef<number>(1);
+  const pendingTimersRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  const spawnCounterRef = useRef(0);
 
   const resetTriggers = useCallback(() => {
     nextPosMilestoneRef.current = 1;
     nextNegMilestoneRef.current = -1;
     triggeredTimesRef.current.clear();
     stepRef.current = 1;
+    spawnCounterRef.current = 0;
+    for (const t of pendingTimersRef.current) clearTimeout(t);
+    pendingTimersRef.current.clear();
   }, []);
 
   useEffect(() => {
@@ -65,7 +87,7 @@ export function useMemeTriggers(
 
     const leftEdge =
       (priceSnapshot.lastLogicalIndex ?? 0) - priceSnapshot.points + 1;
-    const leftBuffer = leftEdge + priceSnapshot.points * 0.2;
+    const leftBuffer = leftEdge + priceSnapshot.points * 0.05;
 
     if (percentChange >= nextPosMilestoneRef.current) {
       const milestonesToCover = Math.floor(
@@ -77,38 +99,68 @@ export function useMemeTriggers(
         Math.floor(percentChange / step) * step + step;
 
       for (let i = 0; i < spawns; i++) {
-        const usePeak = i === 0;
-        const targetIdx = usePeak
-          ? (priceSnapshot.peakIndex ?? 0)
-          : (priceSnapshot.lastLogicalIndex ?? 0);
-        const targetTime = usePeak
-          ? priceSnapshot.peakTime
-          : priceSnapshot.lastTime;
-        const targetPrice = usePeak
-          ? (priceSnapshot.peakPrice ?? lastClose)
-          : lastClose;
+        let targetTime: number | undefined;
+        let targetPrice: number;
+        let targetIdx: number;
+
+        if (i === 0) {
+          targetIdx = priceSnapshot.peakIndex ?? 0;
+          targetTime = priceSnapshot.peakTime;
+          targetPrice = priceSnapshot.peakPrice ?? lastClose;
+        } else {
+          const local = pickLocalAnchor(
+            priceSnapshot.localPeaks,
+            spawnCounterRef.current + i,
+            leftBuffer
+          );
+          if (local) {
+            targetIdx = local.index;
+            targetTime = local.time;
+            targetPrice = local.price;
+          } else {
+            targetIdx = priceSnapshot.lastLogicalIndex ?? 0;
+            targetTime = priceSnapshot.lastTime;
+            targetPrice = lastClose;
+          }
+        }
 
         if (
           !targetTime ||
           targetIdx < leftBuffer ||
-          triggeredTimesRef.current.has(targetTime + i)
+          triggeredTimesRef.current.has(targetTime)
         ) {
           continue;
         }
 
-        if (isAnchorTooClose(targetTime, targetPrice)) {
-          triggeredTimesRef.current.add(targetTime + i);
-          continue;
-        }
+        triggeredTimesRef.current.add(targetTime);
+        spawnCounterRef.current++;
 
-        triggeredTimesRef.current.add(targetTime + i);
-        playAudio("positive");
-        const files = memeFilesRef.current.positive;
-        const filename =
-          files.length > 0
-            ? files[Math.floor(Math.random() * files.length)]
-            : "stonks.webp";
-        spawnMeme("positive", targetTime, targetPrice, filename);
+        if (i === 0) {
+          if (isAnchorTooClose(targetTime, targetPrice)) continue;
+          playAudio("positive");
+          const files = memeFilesRef.current.positive;
+          const filename =
+            files.length > 0
+              ? files[Math.floor(Math.random() * files.length)]
+              : "stonks.webp";
+          spawnMeme("positive", targetTime, targetPrice, filename);
+        } else {
+          const delay = i * CATCHUP_STAGGER_MS;
+          const capturedTime = targetTime;
+          const capturedPrice = targetPrice;
+          const timer = setTimeout(() => {
+            pendingTimersRef.current.delete(timer);
+            if (isAnchorTooClose(capturedTime, capturedPrice)) return;
+            playAudio("positive");
+            const files = memeFilesRef.current.positive;
+            const filename =
+              files.length > 0
+                ? files[Math.floor(Math.random() * files.length)]
+                : "stonks.webp";
+            spawnMeme("positive", capturedTime, capturedPrice, filename);
+          }, delay);
+          pendingTimersRef.current.add(timer);
+        }
       }
     } else if (percentChange <= nextNegMilestoneRef.current) {
       const milestonesToCover = Math.floor(
@@ -120,38 +172,68 @@ export function useMemeTriggers(
         Math.ceil(percentChange / step) * step - step;
 
       for (let i = 0; i < spawns; i++) {
-        const useTrough = i === 0;
-        const targetIdx = useTrough
-          ? (priceSnapshot.troughIndex ?? 0)
-          : (priceSnapshot.lastLogicalIndex ?? 0);
-        const targetTime = useTrough
-          ? priceSnapshot.troughTime
-          : priceSnapshot.lastTime;
-        const targetPrice = useTrough
-          ? (priceSnapshot.troughPrice ?? lastClose)
-          : lastClose;
+        let targetTime: number | undefined;
+        let targetPrice: number;
+        let targetIdx: number;
+
+        if (i === 0) {
+          targetIdx = priceSnapshot.troughIndex ?? 0;
+          targetTime = priceSnapshot.troughTime;
+          targetPrice = priceSnapshot.troughPrice ?? lastClose;
+        } else {
+          const local = pickLocalAnchor(
+            priceSnapshot.localTroughs,
+            spawnCounterRef.current + i,
+            leftBuffer
+          );
+          if (local) {
+            targetIdx = local.index;
+            targetTime = local.time;
+            targetPrice = local.price;
+          } else {
+            targetIdx = priceSnapshot.lastLogicalIndex ?? 0;
+            targetTime = priceSnapshot.lastTime;
+            targetPrice = lastClose;
+          }
+        }
 
         if (
           !targetTime ||
           targetIdx < leftBuffer ||
-          triggeredTimesRef.current.has(targetTime + i)
+          triggeredTimesRef.current.has(targetTime)
         ) {
           continue;
         }
 
-        if (isAnchorTooClose(targetTime, targetPrice)) {
-          triggeredTimesRef.current.add(targetTime + i);
-          continue;
-        }
+        triggeredTimesRef.current.add(targetTime);
+        spawnCounterRef.current++;
 
-        triggeredTimesRef.current.add(targetTime + i);
-        playAudio("negative");
-        const files = memeFilesRef.current.negative;
-        const filename =
-          files.length > 0
-            ? files[Math.floor(Math.random() * files.length)]
-            : "wojak_mcdonalds.webp";
-        spawnMeme("negative", targetTime, targetPrice, filename);
+        if (i === 0) {
+          if (isAnchorTooClose(targetTime, targetPrice)) continue;
+          playAudio("negative");
+          const files = memeFilesRef.current.negative;
+          const filename =
+            files.length > 0
+              ? files[Math.floor(Math.random() * files.length)]
+              : "wojak_mcdonalds.webp";
+          spawnMeme("negative", targetTime, targetPrice, filename);
+        } else {
+          const delay = i * CATCHUP_STAGGER_MS;
+          const capturedTime = targetTime;
+          const capturedPrice = targetPrice;
+          const timer = setTimeout(() => {
+            pendingTimersRef.current.delete(timer);
+            if (isAnchorTooClose(capturedTime, capturedPrice)) return;
+            playAudio("negative");
+            const files = memeFilesRef.current.negative;
+            const filename =
+              files.length > 0
+                ? files[Math.floor(Math.random() * files.length)]
+                : "wojak_mcdonalds.webp";
+            spawnMeme("negative", capturedTime, capturedPrice, filename);
+          }, delay);
+          pendingTimersRef.current.add(timer);
+        }
       }
     }
   }, [isAnchorTooClose, phase, priceSnapshot, spawnMeme, playAudio, memeFilesRef]);

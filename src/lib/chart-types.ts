@@ -14,6 +14,12 @@ export interface AssetMeta {
   exchange?: string;
 }
 
+export interface LocalExtreme {
+  index: number;
+  price: number;
+  time: number;
+}
+
 export interface PriceSnapshot {
   firstClose: number;
   lastClose: number;
@@ -30,6 +36,9 @@ export interface PriceSnapshot {
   troughTime?: number;
   lastTime?: number;
   lastLogicalIndex?: number;
+  /** Local peaks/troughs spread across the visible range for meme anchoring */
+  localPeaks?: LocalExtreme[];
+  localTroughs?: LocalExtreme[];
   getCoordinate?: (time: number, price: number) => { x: number; y: number } | null;
 }
 
