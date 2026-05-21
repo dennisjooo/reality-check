@@ -76,7 +76,7 @@ export function useMemeAudio(
     if (audio.paused || audio.ended) { readyForNextRef.current = true; return true; }
     const { duration, currentTime } = audio;
     if (!duration || isNaN(duration)) return true;
-    if (currentTime >= duration * 0.8) { readyForNextRef.current = true; return true; }
+    if (currentTime >= duration * 0.9) { readyForNextRef.current = true; return true; }
     return false;
   }, []);
 

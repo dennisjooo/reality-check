@@ -37,6 +37,8 @@ interface QueuedMeme {
 }
 
 const QUEUE_POLL_MS = 150;
+const MIN_MEME_COOLDOWN_MS = 600;
+const MAX_QUEUE_SIZE = 2;
 
 export function useMemeTriggers(
   priceSnapshot: PriceSnapshot | null,
@@ -66,6 +68,7 @@ export function useMemeTriggers(
   const queueRef = useRef<QueuedMeme[]>([]);
   const processingRef = useRef(false);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSpawnTimeRef = useRef<number>(0);
 
   const stopProcessing = useCallback(() => {
     if (pollTimerRef.current) {
@@ -86,12 +89,14 @@ export function useMemeTriggers(
         return;
       }
       if (!isReadyForNext()) return;
+      if (Date.now() - lastSpawnTimeRef.current < MIN_MEME_COOLDOWN_MS) return;
 
       const item = queueRef.current.shift()!;
       if (isAnchorTooClose(item.time, item.price)) return;
 
       playAudio(item.type);
       spawnMeme(item.type, item.time, item.price, item.filename);
+      lastSpawnTimeRef.current = Date.now();
     }, QUEUE_POLL_MS);
   }, [isReadyForNext, isAnchorTooClose, playAudio, spawnMeme, stopProcessing]);
 
@@ -101,6 +106,7 @@ export function useMemeTriggers(
     triggeredTimesRef.current.clear();
     lastPosTimeRef.current = 0;
     lastNegTimeRef.current = 0;
+    lastSpawnTimeRef.current = 0;
     stopProcessing();
   }, [stopProcessing]);
 
@@ -157,6 +163,7 @@ export function useMemeTriggers(
           : "stonks.webp";
 
       queueRef.current.push({ type: "positive", time: targetTime, price: targetPrice, filename });
+      if (queueRef.current.length > MAX_QUEUE_SIZE) queueRef.current.shift();
       processQueue();
     } else if (percentChange <= nextNegMilestoneRef.current) {
       nextNegMilestoneRef.current =
@@ -190,6 +197,7 @@ export function useMemeTriggers(
           : "wojak_mcdonalds.webp";
 
       queueRef.current.push({ type: "negative", time: targetTime, price: targetPrice, filename });
+      if (queueRef.current.length > MAX_QUEUE_SIZE) queueRef.current.shift();
       processQueue();
     }
   }, [phase, priceSnapshot, memeFilesRef, processQueue]);

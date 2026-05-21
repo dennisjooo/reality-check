@@ -17,11 +17,15 @@ interface MemeOverlayProps {
   speed: number;
 }
 
+const MEME_LIFETIME_MS = 3000;
+const MEME_LOAD_TIMEOUT_MS = 2000;
+
 export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
-  const MEME_LIFETIME_MS = 1800;
   const [memes, setMemes] = useState<StickyMeme[]>([]);
+  const [loadedMemeIds, setLoadedMemeIds] = useState<Set<number>>(new Set());
   const [zoomedMeme, setZoomedMeme] = useState<StickyMeme | null>(null);
   const memeLifetimeTimersRef = useRef<Set<NodeJS.Timeout>>(new Set());
+  const lifetimeStartedRef = useRef<Set<number>>(new Set());
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const prevPhaseRef = useRef(phase);
   const prevPointsRef = useRef<number | null>(null);
@@ -33,6 +37,22 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
   }>({ positive: [], negative: [], positiveAudio: [], negativeAudio: [] });
 
   const { playAudio, resetAudio, isReadyForNext } = useMemeAudio(phase, memeFilesRef);
+
+  const startMemeLifetime = useCallback((id: number) => {
+    if (lifetimeStartedRef.current.has(id)) return;
+    lifetimeStartedRef.current.add(id);
+
+    const lifetimeTimer = setTimeout(() => {
+      setMemes(prev => prev.filter(m => m.id !== id));
+      setLoadedMemeIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      memeLifetimeTimersRef.current.delete(lifetimeTimer);
+    }, MEME_LIFETIME_MS);
+    memeLifetimeTimersRef.current.add(lifetimeTimer);
+  }, []);
 
   const spawnMeme = useCallback(
     (
@@ -51,14 +71,23 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
       };
       setMemes(prev => [...prev, newMeme]);
 
-      const lifetimeTimer = setTimeout(() => {
-        setMemes(prev => prev.filter(m => m.id !== id));
-        memeLifetimeTimersRef.current.delete(lifetimeTimer);
-      }, MEME_LIFETIME_MS);
-      memeLifetimeTimersRef.current.add(lifetimeTimer);
+      // Fallback: start lifetime even if image never loads
+      const fallbackTimer = setTimeout(() => {
+        startMemeLifetime(id);
+      }, MEME_LOAD_TIMEOUT_MS);
+      memeLifetimeTimersRef.current.add(fallbackTimer);
     },
-    [MEME_LIFETIME_MS]
+    [startMemeLifetime]
   );
+
+  const handleImageLoad = useCallback((memeId: number) => {
+    setLoadedMemeIds(prev => {
+      const next = new Set(prev);
+      next.add(memeId);
+      return next;
+    });
+    startMemeLifetime(memeId);
+  }, [startMemeLifetime]);
 
   const getMemeGeometry = useCallback(
     (meme: StickyMeme, overlayWidth: number, overlayHeight: number) => {
@@ -102,7 +131,9 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
       clearTimeout(timer);
     }
     memeLifetimeTimersRef.current.clear();
+    lifetimeStartedRef.current.clear();
     setMemes([]);
+    setLoadedMemeIds(new Set());
     setZoomedMeme(null);
     resetAudio();
     resetTriggers();
@@ -215,10 +246,13 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
         </svg>
 
         {renderedMemes.map(({ meme, imgLeft, imgTop }) => {
+          const isLoaded = loadedMemeIds.has(meme.id);
           return (
             <div
               key={meme.id}
-              className="absolute pointer-events-auto cursor-pointer drop-shadow-lg z-20 animate-in fade-in duration-300 transition-transform hover:scale-110 hover:z-30"
+              className={`absolute pointer-events-auto cursor-pointer drop-shadow-lg z-20 transition-all duration-300 hover:scale-110 hover:z-30 ${
+                isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-75"
+              }`}
               style={{
                 left: imgLeft,
                 top: imgTop,
@@ -236,6 +270,7 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
                 alt={`${meme.type} meme`}
                 className="h-20 w-20 object-contain rounded-md"
                 draggable={false}
+                onLoad={() => handleImageLoad(meme.id)}
               />
             </div>
           );
