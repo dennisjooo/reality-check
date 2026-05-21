@@ -14,7 +14,6 @@ export function IntervalControl({
 }: IntervalControlProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium text-muted-foreground whitespace-nowrap hidden sm:inline">Time</span>
       <div className="inline-flex items-center rounded-lg bg-muted p-1 border border-border">
         {INTERVALS.map((iv) => (
           <button
