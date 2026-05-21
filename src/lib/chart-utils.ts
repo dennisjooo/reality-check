@@ -1,4 +1,25 @@
-import type { ChartData } from "./chart-types";
+import type { ChartData, PriceSnapshot } from "./chart-types";
+
+/**
+ * Compute a price snapshot from an array of quotes.
+ * Returns null for empty arrays.
+ */
+export function getPriceSnapshot(quotes: ChartData[]): PriceSnapshot | null {
+  if (quotes.length === 0) return null;
+
+  const firstClose = quotes[0].close;
+  const lastClose = quotes[quotes.length - 1].close;
+  const high = Math.max(...quotes.map((q) => q.high));
+  const low = Math.min(...quotes.map((q) => q.low));
+
+  return {
+    firstClose,
+    lastClose,
+    high,
+    low,
+    points: quotes.length,
+  };
+}
 
 /** Get chart color scheme based on current theme */
 export function getChartTheme(isDark: boolean) {

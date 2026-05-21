@@ -3,8 +3,9 @@
 import { useCallback, useRef } from "react";
 import type { ChartData, ChartInterval } from "@/lib/chart-types";
 import type { ChartType } from "@/lib/chart-types";
-import { CHUNK_YEARS, VOLUME_COLORS } from "@/lib/chart-constants";
-import type { IChartApi, Time, HistogramData } from "lightweight-charts";
+import { CHUNK_YEARS } from "@/lib/chart-constants";
+import { toCandlestickData, toLineData, toVolumeData } from "@/lib/chart-series";
+import type { IChartApi } from "lightweight-charts";
 
 interface UseChartDataOptions {
   chartType: ChartType;
@@ -122,24 +123,10 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
 
           if (seriesRef.current && chartRef.current) {
             const visibleRange = chartRef.current.timeScale().getVisibleLogicalRange();
-            if (chartType === "candlestick") {
-              seriesRef.current.setData(
-                quotesRef.current.map((q) => ({
-                  time: q.time as Time,
-                  open: q.open,
-                  high: q.high,
-                  low: q.low,
-                  close: q.close,
-                }))
-              );
-            } else {
-              seriesRef.current.setData(
-                quotesRef.current.map((q) => ({
-                  time: q.time as Time,
-                  value: q.close,
-                }))
-              );
-            }
+            const allQuotes = quotesRef.current;
+            seriesRef.current.setData(
+              chartType === "candlestick" ? toCandlestickData(allQuotes) : toLineData(allQuotes)
+            );
             if (visibleRange) {
               const rangeShift = newQuotes.length;
               chartRef.current.timeScale().setVisibleLogicalRange({
@@ -150,12 +137,7 @@ export function useChartData({ chartType, interval, onDataChange }: UseChartData
           }
 
           if (volumeSeriesRef?.current) {
-            const volumeData: HistogramData[] = quotesRef.current.map((q) => ({
-              time: q.time as Time,
-              value: q.volume,
-              color: q.close >= q.open ? VOLUME_COLORS.upColor : VOLUME_COLORS.downColor,
-            }));
-            volumeSeriesRef.current.setData(volumeData);
+            volumeSeriesRef.current.setData(toVolumeData(quotesRef.current));
           }
         } else {
           hasMoreDataRef.current = false;

@@ -5,7 +5,9 @@ import type { IChartApi } from "lightweight-charts";
 import type { ChartData, AnimPhase, PriceSnapshot } from "@/lib/chart-types";
 import { MILESTONES } from "@/lib/chart-constants";
 import { computeSafeRange } from "@/lib/chart-utils";
+import { computeNextVisibleBars, getMilestoneIndex, buildRollingSnapshot } from "@/lib/animation-math";
 import { ControlBus } from "@/lib/control-bus";
+import { useControlBusSubscription } from "@/hooks/use-control-bus-subscription";
 
 interface UseChartAnimationOptions {
   chartRef: React.MutableRefObject<IChartApi | null>;
@@ -82,11 +84,7 @@ export function useChartAnimation({
 
   const updateMilestoneProgress = useCallback(
     (visibleBars: number) => {
-      let index = 0;
-      while (index < MILESTONES.length && visibleBars >= MILESTONES[index]) {
-        index += 1;
-      }
-
+      const index = getMilestoneIndex(visibleBars, MILESTONES);
       if (index !== milestoneIndexRef.current) {
         milestoneIndexRef.current = index;
         onMilestoneChange?.(index);
@@ -115,13 +113,10 @@ export function useChartAnimation({
 
       const quotes = quotesRef.current;
       if (onPriceSnapshotChange && quotes.length > 0) {
-        onPriceSnapshotChange({
-          firstClose: quotes[0].close,
-          lastClose: quotes[quotes.length - 1].close,
-          high: Math.max(...quotes.map((q) => q.high)),
-          low: Math.min(...quotes.map((q) => q.low)),
-          points: quotes.length,
-        });
+        const snapshot = buildRollingSnapshot(quotes, 0, quotes.length - 1, quotes.length);
+        if (snapshot) {
+          onPriceSnapshotChange(snapshot);
+        }
       }
 
       onPhaseChange("complete");
@@ -154,19 +149,11 @@ export function useChartAnimation({
 
       const totalBars = quotes.length;
 
-      // Additive floor for visible early motion (before exponential kicks in)
-      const minBarsPerSec = 1.5 + speedRef.current * 1.0;
-      const additive = minBarsPerSec * deltaSec;
-
-      // Exponential: speed 1 ~1.33x/s, speed 5 ~1.65x/s, speed 10 ~2.05x/s
-      const growthPerSecond = 1.25 + speedRef.current * 0.08;
-      const multiplicative =
-        currentVisibleBarsRef.current * (Math.pow(growthPerSecond, deltaSec) - 1);
-
-      currentVisibleBarsRef.current += Math.max(additive, multiplicative);
-      currentVisibleBarsRef.current = Math.min(
+      currentVisibleBarsRef.current = computeNextVisibleBars(
         currentVisibleBarsRef.current,
-        totalBars
+        deltaSec,
+        speedRef.current,
+        totalBars,
       );
 
       const lastBarIndex = totalBars - 1;
@@ -193,16 +180,9 @@ export function useChartAnimation({
       if (onPriceSnapshotChange && now - lastSnapshotUpdateRef.current >= 80) {
         lastSnapshotUpdateRef.current = now;
         const fromIdx = Math.max(0, Math.floor(fromFloat));
-        const firstBar = quotes[fromIdx];
-        const lastBar = quotes[lastBarIndex];
-        if (firstBar && lastBar) {
-          onPriceSnapshotChange({
-            firstClose: firstBar.close,
-            lastClose: lastBar.close,
-            high: lastBar.high,
-            low: firstBar.low,
-            points: Math.round(currentVisibleBarsRef.current),
-          });
+        const snapshot = buildRollingSnapshot(quotes, fromIdx, lastBarIndex, currentVisibleBarsRef.current);
+        if (snapshot) {
+          onPriceSnapshotChange(snapshot);
         }
       }
 
@@ -362,16 +342,9 @@ export function useChartAnimation({
 
       lastSnapshotUpdateRef.current = 0;
       if (onPriceSnapshotChange && quotes.length > 0) {
-        const firstBar = quotes[fromIndex];
-        const lastBar = quotes[lastBarIndex];
-        if (firstBar && lastBar) {
-          onPriceSnapshotChange({
-            firstClose: firstBar.close,
-            lastClose: lastBar.close,
-            high: lastBar.high,
-            low: firstBar.low,
-            points: Math.round(currentVisibleBarsRef.current),
-          });
+        const snapshot = buildRollingSnapshot(quotes, fromIndex, lastBarIndex, currentVisibleBarsRef.current);
+        if (snapshot) {
+          onPriceSnapshotChange(snapshot);
         }
       }
 
@@ -386,32 +359,15 @@ export function useChartAnimation({
     ]
   );
 
-  // Subscribe to control bus events
-  useEffect(() => {
-    const unsubContinue = controlBus.on("continue", () => {
-      if (quotesRef.current.length > 0 && chartRef.current) {
-        resumeAnimation(chartRef.current, quotesRef.current);
-      }
-    });
-
-    const unsubPause = controlBus.on("pause", () => {
-      if (animatingRef.current) {
-        pauseAnimation();
-      }
-    });
-
-    const unsubReset = controlBus.on("reset", () => {
-      if (quotesRef.current.length > 0 && chartRef.current) {
-        resetPlay(chartRef.current, quotesRef.current);
-      }
-    });
-
-    return () => {
-      unsubContinue();
-      unsubPause();
-      unsubReset();
-    };
-  }, [controlBus, chartRef, quotesRef, resumeAnimation, pauseAnimation, resetPlay]);
+  useControlBusSubscription({
+    controlBus,
+    chartRef,
+    quotesRef,
+    resumeAnimation,
+    pauseAnimation,
+    resetPlay,
+    animatingRef,
+  });
 
   useEffect(() => {
     return () => {

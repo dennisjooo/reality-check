@@ -1,35 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  createChart,
-  type IChartApi,
-  type CandlestickData,
-  type LineData,
-  type HistogramData,
-  type Time,
-  ColorType,
-  CandlestickSeries,
-  LineSeries,
-  HistogramSeries,
-} from "lightweight-charts";
+import type { IChartApi } from "lightweight-charts";
 import type {
   ChartType,
   ChartInterval,
   AnimPhase,
   PriceSnapshot,
-  ChartData,
 } from "@/lib/chart-types";
 import {
   MILESTONES,
   CHUNK_YEARS,
-  CANDLESTICK_COLORS,
-  LINE_SERIES_OPTIONS,
-  VOLUME_COLORS,
 } from "@/lib/chart-constants";
-import { getChartTheme, getPriceFormat } from "@/lib/chart-utils";
+import { getPriceFormat, getPriceSnapshot } from "@/lib/chart-utils";
+import { addPriceSeries, toVolumeData } from "@/lib/chart-series";
+import { createChartInstance } from "@/lib/chart-factory";
 import { useChartData } from "@/hooks/use-chart-data";
 import { useChartAnimation } from "@/hooks/use-chart-animation";
+import { useChartTheme } from "@/hooks/use-chart-theme";
 import { StartOverlay } from "@/components/start-overlay";
 import { ControlBus } from "@/lib/control-bus";
 
@@ -48,23 +36,6 @@ interface ZoomChartProps {
   targetMilestone?: number;
   onMilestoneChange?: (milestoneIndex: number) => void;
   onPriceSnapshotChange?: (snapshot: PriceSnapshot | null) => void;
-}
-
-function getPriceSnapshot(quotes: ChartData[]): PriceSnapshot | null {
-  if (quotes.length === 0) return null;
-
-  const firstClose = quotes[0].close;
-  const lastClose = quotes[quotes.length - 1].close;
-  const high = Math.max(...quotes.map((q) => q.high));
-  const low = Math.min(...quotes.map((q) => q.low));
-
-  return {
-    firstClose,
-    lastClose,
-    high,
-    low,
-    points: quotes.length,
-  };
 }
 
 export function ZoomChart({
@@ -170,86 +141,12 @@ export function ZoomChart({
 
         const container = containerRef.current!;
 
-        const isDark = document.documentElement.classList.contains("dark");
-        const theme = getChartTheme(isDark);
-
-        const chart = createChart(container, {
-          layout: {
-            background: { type: ColorType.Solid, color: "transparent" },
-            textColor: theme.textColor,
-            fontFamily: "var(--font-urbanist), Inter, system-ui, sans-serif",
-          },
-          grid: {
-            vertLines: { color: theme.gridColor },
-            horzLines: { color: theme.gridColor },
-          },
-          crosshair: {
-            mode: 0,
-          },
-          rightPriceScale: {
-            borderColor: theme.borderColor,
-          },
-          timeScale: {
-            borderColor: theme.borderColor,
-            timeVisible: true,
-            secondsVisible: false,
-            minBarSpacing: 0.01,
-          },
+        const { chart, series, volumeSeries } = createChartInstance(container, quotes, {
+          chartType,
+          lineColor,
         });
-
         chartRef.current = chart;
-
-        chart.applyOptions({
-          width: container.clientWidth,
-          height: container.clientHeight,
-        });
-
-        const priceFormat = getPriceFormat(quotes);
-
-        if (chartType === "candlestick") {
-          const series = chart.addSeries(CandlestickSeries, {
-            ...CANDLESTICK_COLORS,
-            priceFormat,
-          });
-          const candleData: CandlestickData[] = quotes.map((q) => ({
-            time: q.time as Time,
-            open: q.open,
-            high: q.high,
-            low: q.low,
-            close: q.close,
-          }));
-          series.setData(candleData);
-          seriesRef.current = series;
-        } else {
-          const series = chart.addSeries(LineSeries, {
-            color: lineColor,
-            priceLineColor: lineColor,
-            crosshairMarkerBackgroundColor: lineColor,
-            ...LINE_SERIES_OPTIONS,
-            priceFormat,
-          });
-          const lineData: LineData[] = quotes.map((q) => ({
-            time: q.time as Time,
-            value: q.close,
-          }));
-          series.setData(lineData);
-          seriesRef.current = series;
-        }
-
-        const volumeSeries = chart.addSeries(HistogramSeries, {
-          ...VOLUME_COLORS,
-          priceFormat: { type: "volume" as const },
-          priceScaleId: "volume",
-        });
-        chart.priceScale("volume").applyOptions({
-          scaleMargins: { top: 0.8, bottom: 0 },
-        });
-        const volumeData: HistogramData[] = quotes.map((q) => ({
-          time: q.time as Time,
-          value: q.volume,
-          color: q.close >= q.open ? VOLUME_COLORS.upColor : VOLUME_COLORS.downColor,
-        }));
-        volumeSeries.setData(volumeData);
+        seriesRef.current = series;
         volumeSeriesRef.current = volumeSeries;
 
         const observer = new ResizeObserver(() => {
@@ -363,82 +260,16 @@ export function ZoomChart({
     }
 
     const priceFormat = getPriceFormat(quotes);
-
-    if (chartType === "candlestick") {
-      const series = chart.addSeries(CandlestickSeries, {
-        ...CANDLESTICK_COLORS,
-        priceFormat,
-      });
-      series.setData(
-        quotes.map((q) => ({
-          time: q.time as Time,
-          open: q.open,
-          high: q.high,
-          low: q.low,
-          close: q.close,
-        }))
-      );
-      seriesRef.current = series;
-    } else {
-      const series = chart.addSeries(LineSeries, {
-        color: lineColor,
-        priceLineColor: lineColor,
-        crosshairMarkerBackgroundColor: lineColor,
-        ...LINE_SERIES_OPTIONS,
-        priceFormat,
-      });
-      series.setData(
-        quotes.map((q) => ({
-          time: q.time as Time,
-          value: q.close,
-        }))
-      );
-      seriesRef.current = series;
-    }
+    const series = addPriceSeries(chart, chartType, quotes, priceFormat, lineColor);
+    seriesRef.current = series;
 
     if (volumeSeriesRef.current) {
-      const volumeData: HistogramData[] = quotes.map((q) => ({
-        time: q.time as Time,
-        value: q.volume,
-        color: q.close >= q.open ? VOLUME_COLORS.upColor : VOLUME_COLORS.downColor,
-      }));
-      volumeSeriesRef.current.setData(volumeData);
+      volumeSeriesRef.current.setData(toVolumeData(quotes));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- quotesRef is stable
   }, [chartType, lineColor]);
 
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const chart = chartRef.current;
-      if (!chart) return;
-
-      const isDark = document.documentElement.classList.contains("dark");
-      const theme = getChartTheme(isDark);
-
-      chart.applyOptions({
-        layout: {
-          textColor: theme.textColor,
-        },
-        grid: {
-          vertLines: { color: theme.gridColor },
-          horzLines: { color: theme.gridColor },
-        },
-        rightPriceScale: {
-          borderColor: theme.borderColor,
-        },
-        timeScale: {
-          borderColor: theme.borderColor,
-        },
-      });
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    return () => observer.disconnect();
-  }, []);
+  useChartTheme(chartRef);
 
   useEffect(() => {
     if (chartType !== "line" || !seriesRef.current) return;

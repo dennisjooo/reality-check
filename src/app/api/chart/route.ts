@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+import { VALID_SYMBOL_RE, VALID_INTERVALS, KNOWN_PARAMS, INTERVAL_MAX_DAYS } from "@/lib/api-validation";
+import { parseDateParam, rangeToPeriod1 } from "@/lib/date-utils";
 
 const yahooFinance = new YahooFinance();
 
@@ -10,30 +12,6 @@ const rateLimiter = createRateLimiter({
   limit: 30,
   windowSeconds: 60,
 });
-
-// --- Input Validation ---
-const VALID_SYMBOL_RE = /^[A-Za-z0-9^=.\-]{1,20}$/;
-const VALID_INTERVALS = new Set([
-  "1h",
-  "1d",
-  "1wk",
-  "1mo",
-]);
-const KNOWN_PARAMS = new Set([
-  "symbol",
-  "interval",
-  "period1",
-  "period2",
-  "range",
-]);
-
-// Yahoo Finance limits how far back you can fetch per interval
-const INTERVAL_MAX_DAYS: Record<string, number> = {
-  "1h": 730,
-  "1d": Infinity,
-  "1wk": Infinity,
-  "1mo": Infinity,
-};
 
 function setRateLimitHeaders(
   response: NextResponse,
@@ -185,48 +163,5 @@ export async function GET(request: NextRequest) {
     );
     setRateLimitHeaders(res, rateResult);
     return res;
-  }
-}
-
-function parseDateParam(param: string): Date {
-  // Try unix timestamp (seconds) first
-  const asNumber = Number(param);
-  if (!isNaN(asNumber) && asNumber > 1e12) {
-    // Looks like milliseconds
-    return new Date(asNumber);
-  }
-  if (!isNaN(asNumber)) {
-    // Looks like unix seconds
-    return new Date(asNumber * 1000);
-  }
-  // Try ISO date string
-  return new Date(param);
-}
-
-function rangeToPeriod1(range: string): Date {
-  const now = new Date();
-  switch (range) {
-    case "1d":
-      return new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
-    case "5d":
-      return new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
-    case "1mo":
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    case "3mo":
-      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    case "6mo":
-      return new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-    case "1y":
-      return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    case "2y":
-      return new Date(now.getTime() - 2 * 365 * 24 * 60 * 60 * 1000);
-    case "5y":
-      return new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000);
-    case "10y":
-      return new Date(now.getTime() - 10 * 365 * 24 * 60 * 60 * 1000);
-    case "max":
-      return new Date(0);
-    default:
-      return new Date(0);
   }
 }
