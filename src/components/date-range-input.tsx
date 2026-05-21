@@ -62,7 +62,7 @@ export function DateRangeInput({
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <CalendarIcon className="size-3.5 translate-y-px" />
+          <CalendarIcon className="size-3" />
           <span className="hidden sm:inline">
             {from ? format(from, "MMM d, yyyy") : "Start"}
           </span>
@@ -92,7 +92,7 @@ export function DateRangeInput({
         </PopoverContent>
       </Popover>
 
-      <span className="text-[10px] text-muted-foreground/50">&ndash;</span>
+      <span className="text-xs text-muted-foreground/30 select-none">&ndash;</span>
 
       <Popover>
         <PopoverTrigger
@@ -105,7 +105,7 @@ export function DateRangeInput({
           <span className="hidden sm:inline">
             {to ? format(to, "MMM d, yyyy") : "End"}
           </span>
-          {!from && !to && <CalendarIcon className="size-3.5 sm:hidden translate-y-px" />}
+          {!from && !to && <CalendarIcon className="size-3 sm:hidden" />}
         </PopoverTrigger>
         {to && (
           <button
