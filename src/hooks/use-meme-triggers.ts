@@ -17,12 +17,12 @@ function computeStep(snapshot: PriceSnapshot): number {
 function pickNextAnchor(
   extremes: LocalExtreme[] | undefined,
   afterTime: number,
-  leftBuffer: number
+  minIndex: number
 ): LocalExtreme | null {
   if (!extremes || extremes.length === 0) return null;
   let best: LocalExtreme | null = null;
   for (const e of extremes) {
-    if (e.index < leftBuffer || !e.time) continue;
+    if (e.index < minIndex || !e.time) continue;
     if (e.time <= afterTime) continue;
     if (!best || e.time < best.time) best = e;
   }
@@ -37,8 +37,77 @@ interface QueuedMeme {
 }
 
 const QUEUE_POLL_MS = 150;
-const MIN_MEME_COOLDOWN_MS = 600;
+const MIN_MEME_COOLDOWN_MS = 280;
+const MAX_MEME_COOLDOWN_MS = 900;
 const MAX_QUEUE_SIZE = 2;
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+function pickRandomNonRepeating(
+  files: string[],
+  previous: string | null
+): string | null {
+  if (files.length === 0) return null;
+  if (files.length === 1 || !previous) {
+    return files[Math.floor(Math.random() * files.length)];
+  }
+
+  const next = files[Math.floor(Math.random() * files.length)];
+  if (next !== previous) return next;
+
+  const alternatives = files.filter((f) => f !== previous);
+  return alternatives.length > 0
+    ? alternatives[Math.floor(Math.random() * alternatives.length)]
+    : next;
+}
+
+function getDynamicCooldownMs(
+  snapshot: PriceSnapshot,
+  percentChange: number,
+  previousPercent: number
+): number {
+  const amplitudePct =
+    snapshot.firstClose > 0
+      ? ((snapshot.high - snapshot.low) / snapshot.firstClose) * 100
+      : 0;
+
+  const momentumPct = Math.abs(percentChange - previousPercent);
+  const volatilityScore = clamp(amplitudePct / 60, 0, 1);
+  const momentumScore = clamp(momentumPct / 2.5, 0, 1);
+  const hypeScore = Math.max(volatilityScore, momentumScore);
+
+  const cooldown =
+    MAX_MEME_COOLDOWN_MS -
+    hypeScore * (MAX_MEME_COOLDOWN_MS - MIN_MEME_COOLDOWN_MS);
+  return Math.round(clamp(cooldown, MIN_MEME_COOLDOWN_MS, MAX_MEME_COOLDOWN_MS));
+}
+
+function pickMagneticAnchor(
+  extremes: LocalExtreme[] | undefined,
+  fallback: LocalExtreme | null,
+  minIndex: number,
+  points: number
+): LocalExtreme | null {
+  if (!fallback) return null;
+  if (!extremes || extremes.length === 0) return fallback;
+
+  const band = Math.max(6, Math.floor(points * 0.14));
+  let best = fallback;
+  let bestDist = Number.POSITIVE_INFINITY;
+
+  for (const e of extremes) {
+    if (!e.time || e.index < minIndex) continue;
+    const dist = Math.abs(e.index - fallback.index);
+    if (dist > band) continue;
+    if (dist < bestDist) {
+      best = e;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
 
 export function useMemeTriggers(
   priceSnapshot: PriceSnapshot | null,
@@ -58,7 +127,8 @@ export function useMemeTriggers(
     positiveAudio: string[];
     negativeAudio: string[];
   }>,
-  isReadyForNext: () => boolean
+  isReadyForNext: () => boolean,
+  speed: number
 ) {
   const nextPosMilestoneRef = useRef<number>(3);
   const nextNegMilestoneRef = useRef<number>(-3);
@@ -69,6 +139,12 @@ export function useMemeTriggers(
   const processingRef = useRef(false);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSpawnTimeRef = useRef<number>(0);
+  const dynamicCooldownMsRef = useRef<number>(600);
+  const prevPercentRef = useRef<number>(0);
+  const lastImageFileRef = useRef<{
+    positive: string | null;
+    negative: string | null;
+  }>({ positive: null, negative: null });
 
   const playAudioRef = useRef(playAudio);
   useEffect(() => {
@@ -94,7 +170,7 @@ export function useMemeTriggers(
         return;
       }
       if (!isReadyForNext()) return;
-      if (Date.now() - lastSpawnTimeRef.current < MIN_MEME_COOLDOWN_MS) return;
+      if (Date.now() - lastSpawnTimeRef.current < dynamicCooldownMsRef.current) return;
 
       const item = queueRef.current.shift()!;
       if (isAnchorTooClose(item.time, item.price)) return;
@@ -112,6 +188,9 @@ export function useMemeTriggers(
     lastPosTimeRef.current = 0;
     lastNegTimeRef.current = 0;
     lastSpawnTimeRef.current = 0;
+    dynamicCooldownMsRef.current = 600;
+    prevPercentRef.current = 0;
+    lastImageFileRef.current = { positive: null, negative: null };
     stopProcessing();
   }, [stopProcessing]);
 
@@ -131,10 +210,23 @@ export function useMemeTriggers(
 
     const step = computeStep(priceSnapshot);
     const percentChange = ((lastClose - firstClose) / firstClose) * 100;
+    dynamicCooldownMsRef.current = getDynamicCooldownMs(
+      priceSnapshot,
+      percentChange,
+      prevPercentRef.current
+    );
+    prevPercentRef.current = percentChange;
 
     const leftEdge =
       (priceSnapshot.lastLogicalIndex ?? 0) - priceSnapshot.points + 1;
-    const leftBuffer = leftEdge + priceSnapshot.points * 0.05;
+    const speedFactor = clamp((speed - 1) / 3, 0, 1);
+    const recentWindowStartFrac = 0.4 + speedFactor * 0.35;
+    const recentWindowMinIndex =
+      leftEdge + priceSnapshot.points * recentWindowStartFrac;
+    const minAnchorIndex = Math.max(
+      leftEdge + priceSnapshot.points * 0.05,
+      recentWindowMinIndex
+    );
 
     if (percentChange >= nextPosMilestoneRef.current) {
       nextPosMilestoneRef.current =
@@ -143,16 +235,30 @@ export function useMemeTriggers(
       const local = pickNextAnchor(
         priceSnapshot.localPeaks,
         lastPosTimeRef.current,
-        leftBuffer
+        minAnchorIndex
       );
-
-      const targetTime = local?.time ?? priceSnapshot.peakTime;
-      const targetPrice = local?.price ?? (priceSnapshot.peakPrice ?? lastClose);
-      const targetIdx = local?.index ?? (priceSnapshot.peakIndex ?? 0);
+      const fallbackPeak: LocalExtreme | null =
+        local ??
+        (priceSnapshot.peakTime && priceSnapshot.peakPrice != null
+          ? {
+              time: priceSnapshot.peakTime,
+              price: priceSnapshot.peakPrice,
+              index: priceSnapshot.peakIndex ?? 0,
+            }
+          : null);
+      const magneticPeak = pickMagneticAnchor(
+        priceSnapshot.localPeaks,
+        fallbackPeak,
+        minAnchorIndex,
+        priceSnapshot.points
+      );
+      const targetTime = magneticPeak?.time;
+      const targetPrice = magneticPeak?.price ?? lastClose;
+      const targetIdx = magneticPeak?.index ?? 0;
 
       if (
         !targetTime ||
-        targetIdx < leftBuffer ||
+        targetIdx < minAnchorIndex ||
         triggeredTimesRef.current.has(targetTime)
       ) {
         return;
@@ -162,10 +268,11 @@ export function useMemeTriggers(
       lastPosTimeRef.current = targetTime;
 
       const files = memeFilesRef.current.positive;
-      const filename =
-        files.length > 0
-          ? files[Math.floor(Math.random() * files.length)]
-          : "stonks.webp";
+      const filename = pickRandomNonRepeating(
+        files,
+        lastImageFileRef.current.positive
+      ) ?? "stonks.webp";
+      lastImageFileRef.current.positive = filename;
 
       queueRef.current.push({ type: "positive", time: targetTime, price: targetPrice, filename });
       if (queueRef.current.length > MAX_QUEUE_SIZE) queueRef.current.shift();
@@ -177,16 +284,30 @@ export function useMemeTriggers(
       const local = pickNextAnchor(
         priceSnapshot.localTroughs,
         lastNegTimeRef.current,
-        leftBuffer
+        minAnchorIndex
       );
-
-      const targetTime = local?.time ?? priceSnapshot.troughTime;
-      const targetPrice = local?.price ?? (priceSnapshot.troughPrice ?? lastClose);
-      const targetIdx = local?.index ?? (priceSnapshot.troughIndex ?? 0);
+      const fallbackTrough: LocalExtreme | null =
+        local ??
+        (priceSnapshot.troughTime && priceSnapshot.troughPrice != null
+          ? {
+              time: priceSnapshot.troughTime,
+              price: priceSnapshot.troughPrice,
+              index: priceSnapshot.troughIndex ?? 0,
+            }
+          : null);
+      const magneticTrough = pickMagneticAnchor(
+        priceSnapshot.localTroughs,
+        fallbackTrough,
+        minAnchorIndex,
+        priceSnapshot.points
+      );
+      const targetTime = magneticTrough?.time;
+      const targetPrice = magneticTrough?.price ?? lastClose;
+      const targetIdx = magneticTrough?.index ?? 0;
 
       if (
         !targetTime ||
-        targetIdx < leftBuffer ||
+        targetIdx < minAnchorIndex ||
         triggeredTimesRef.current.has(targetTime)
       ) {
         return;
@@ -196,16 +317,17 @@ export function useMemeTriggers(
       lastNegTimeRef.current = targetTime;
 
       const files = memeFilesRef.current.negative;
-      const filename =
-        files.length > 0
-          ? files[Math.floor(Math.random() * files.length)]
-          : "wojak_mcdonalds.webp";
+      const filename = pickRandomNonRepeating(
+        files,
+        lastImageFileRef.current.negative
+      ) ?? "wojak_mcdonalds.webp";
+      lastImageFileRef.current.negative = filename;
 
       queueRef.current.push({ type: "negative", time: targetTime, price: targetPrice, filename });
       if (queueRef.current.length > MAX_QUEUE_SIZE) queueRef.current.shift();
       processQueue();
     }
-  }, [phase, priceSnapshot, memeFilesRef, processQueue]);
+  }, [phase, priceSnapshot, memeFilesRef, processQueue, speed]);
 
   return { resetTriggers };
 }

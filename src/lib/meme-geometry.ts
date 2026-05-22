@@ -21,7 +21,8 @@ export function getMemeGeometry(
   meme: StickyMeme,
   overlayWidth: number,
   overlayHeight: number,
-  getCoordinate: (time: number, price: number) => { x: number; y: number } | null
+  getCoordinate: (time: number, price: number) => { x: number; y: number } | null,
+  speed: number
 ): {
   targetX: number;
   targetY: number;
@@ -36,11 +37,23 @@ export function getMemeGeometry(
 
   const targetX = coords.x;
   const targetY = coords.y;
+  const speedFactor = Math.max(0, Math.min((speed - 1) / 3, 1));
+  const offscreenMargin = 12;
+  if (
+    targetX < -offscreenMargin ||
+    targetX > overlayWidth + offscreenMargin ||
+    targetY < -offscreenMargin ||
+    targetY > overlayHeight + offscreenMargin
+  ) {
+    return null;
+  }
   const halfImg = 40;
-  const imgOffsetX = targetX < overlayWidth * 0.33 ? 46 : -46;
-  const imgOffsetY = meme.type === "positive" ? -45 : 40;
-  const minConnector = 40;
-  const maxConnector = 88;
+  const baseOffsetX = targetX < overlayWidth * 0.33 ? 46 : -46;
+  const imgOffsetX = baseOffsetX * (1 - speedFactor * 0.4);
+  const baseOffsetY = meme.type === "positive" ? -45 : 40;
+  const imgOffsetY = baseOffsetY * (1 - speedFactor * 0.35);
+  const minConnector = Math.round(40 - speedFactor * 14);
+  const maxConnector = Math.round(88 - speedFactor * 22);
 
   const minX = halfImg + 6;
   const maxX = Math.max(minX, overlayWidth - halfImg - 6);
@@ -72,12 +85,12 @@ export function getMemeGeometry(
     dist = Math.sqrt(dx * dx + dy * dy);
   }
 
-  const minVisibleConnector = 24;
   const unitX = dist > 0 ? dx / dist : 0;
   const unitY = dist > 0 ? dy / dist : 0;
-  const lineRadius = Math.max(8, Math.min(halfImg - 2, dist - minVisibleConnector));
-  const lineStartX = imgCenterX + unitX * lineRadius;
-  const lineStartY = imgCenterY + unitY * lineRadius;
+  const edgePadding = 4;
+  const lineStartRadius = Math.max(10, halfImg - edgePadding);
+  const lineStartX = imgCenterX + unitX * lineStartRadius;
+  const lineStartY = imgCenterY + unitY * lineStartRadius;
   const showLine = dist > 10;
 
   return {

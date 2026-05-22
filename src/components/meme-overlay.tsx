@@ -97,10 +97,11 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
         meme,
         overlayWidth,
         overlayHeight,
-        priceSnapshot.getCoordinate
+        priceSnapshot.getCoordinate,
+        speed
       );
     },
-    [priceSnapshot]
+    [priceSnapshot, speed]
   );
 
   const isAnchorTooClose = useCallback(
@@ -124,7 +125,8 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
     playAudio,
     isAnchorTooClose,
     memeFilesRef,
-    isReadyForNext
+    isReadyForNext,
+    speed
   );
 
   const resetMemeState = useCallback(() => {
@@ -251,7 +253,7 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
           return (
             <div
               key={meme.id}
-              className={`absolute pointer-events-auto cursor-pointer drop-shadow-lg z-20 transition-all duration-300 hover:scale-110 hover:z-30 ${
+              className={`absolute pointer-events-auto cursor-pointer drop-shadow-lg z-20 transition-[opacity,transform] duration-300 hover:scale-110 hover:z-30 ${
                 isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-75"
               }`}
               style={{
