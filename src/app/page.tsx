@@ -50,6 +50,8 @@ function HomeContent() {
     updateToDate,
     memesEnabled,
     setMemesEnabled,
+    volume,
+    setVolume,
   } = useSettings(overrides);
 
   const [chartKey, setChartKey] = useState(0);
@@ -61,7 +63,7 @@ function HomeContent() {
 
   const controlBus = useMemo(() => new ControlBus(), []);
 
-  useBackgroundAudio({ phase, memesEnabled, speed, chartKey, controlBus });
+  useBackgroundAudio({ phase, memesEnabled, speed, chartKey, controlBus, priceSnapshot, volume });
 
   useUrlSync({ symbol, speed, chartType, interval, fromDate, toDate, memesEnabled });
 
@@ -141,7 +143,7 @@ function HomeContent() {
             />
           </ChartErrorBoundary>
           {memesEnabled && (
-            <MemeOverlay priceSnapshot={priceSnapshot} phase={phase} speed={speed} />
+            <MemeOverlay priceSnapshot={priceSnapshot} phase={phase} speed={speed} volume={volume} />
           )}
           <CompletionOverlay visible={phase === "complete"} />
           {phase === "idle" && (
@@ -187,6 +189,8 @@ function HomeContent() {
         onChartKeyBump={() => setChartKey((k) => k + 1)}
         memesEnabled={memesEnabled}
         onMemesEnabledChange={setMemesEnabled}
+        volume={volume}
+        onVolumeChange={setVolume}
       />
     </div>
   );

@@ -12,7 +12,7 @@ export const DEFAULT_ASSET_META = {
   type: "CRYPTOCURRENCY",
   exchange: "CCC",
 } as const;
-export const DEFAULT_SPEED = 6;
+export const DEFAULT_SPEED = 1;
 export const DEFAULT_LINE_COLOR = "#3b82f6";
 export const DEFAULT_INTERVAL: ChartInterval = "1d";
 
@@ -67,4 +67,5 @@ export interface PersistedSettings {
   toDate?: string;
   savedAt?: number;
   memesEnabled?: boolean;
+  volume?: number;
 }

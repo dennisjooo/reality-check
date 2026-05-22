@@ -9,6 +9,7 @@ import { SpeedControl } from "@/components/speed-control";
 import { IntervalControl } from "@/components/interval-control";
 import { ChartTypeControl } from "@/components/chart-type-control";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ interface SettingsModalProps {
   onChartKeyBump: () => void;
   memesEnabled: boolean;
   onMemesEnabledChange: (enabled: boolean) => void;
+  volume: number;
+  onVolumeChange: (volume: number) => void;
 }
 
 export function SettingsModal({
@@ -46,6 +49,8 @@ export function SettingsModal({
   onChartKeyBump,
   memesEnabled,
   onMemesEnabledChange,
+  volume,
+  onVolumeChange,
 }: SettingsModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -140,6 +145,23 @@ export function SettingsModal({
                   onCheckedChange={onMemesEnabledChange}
                 />
               </label>
+
+              <div className="flex flex-col gap-2 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground/90">Master Volume</span>
+                  <span className="text-xs text-muted-foreground">{Math.round(volume * 100)}%</span>
+                </div>
+                <Slider
+                  value={[volume * 100]}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onValueChange={(vals: number | readonly number[]) => {
+                    const val = Array.isArray(vals) ? vals[0] : (vals as number);
+                    onVolumeChange(val / 100);
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

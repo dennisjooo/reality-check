@@ -26,6 +26,7 @@ export interface PriceSnapshot {
   high: number;
   low: number;
   points: number;
+  totalPoints?: number;
   x?: number;
   y?: number;
   peakIndex?: number;

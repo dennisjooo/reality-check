@@ -125,7 +125,7 @@ export function useChartAnimation({
       onMilestoneChange?.(MILESTONES.length);
 
       if (onPriceSnapshotChange && quotes.length > 0) {
-        const snapshot = buildRollingSnapshot(quotes, 0, quotes.length - 1, quotes.length);
+        const snapshot = buildRollingSnapshot(quotes, 0, quotes.length - 1, quotes.length, quotes.length);
         if (snapshot && seriesRef.current) {
           attachGetCoordinate(snapshot, chart, seriesRef.current, quotes.length - 1);
           onPriceSnapshotChange(snapshot);
@@ -193,7 +193,7 @@ export function useChartAnimation({
       if (onPriceSnapshotChange && now - lastSnapshotUpdateRef.current >= 80) {
         lastSnapshotUpdateRef.current = now;
         const fromIdx = Math.max(0, Math.floor(fromFloat));
-        const snapshot = buildRollingSnapshot(quotes, fromIdx, lastBarIndex, currentVisibleBarsRef.current);
+        const snapshot = buildRollingSnapshot(quotes, fromIdx, lastBarIndex, currentVisibleBarsRef.current, quotes.length);
         if (snapshot) {
           if (seriesRef.current) {
             const timeScale = chart.timeScale();
@@ -367,7 +367,7 @@ export function useChartAnimation({
 
       lastSnapshotUpdateRef.current = 0;
       if (onPriceSnapshotChange && quotes.length > 0) {
-        const snapshot = buildRollingSnapshot(quotes, fromIndex, lastBarIndex, currentVisibleBarsRef.current);
+        const snapshot = buildRollingSnapshot(quotes, fromIndex, lastBarIndex, currentVisibleBarsRef.current, quotes.length);
         if (snapshot) {
           onPriceSnapshotChange(snapshot);
         }

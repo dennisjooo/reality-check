@@ -83,12 +83,14 @@ export function buildRollingSnapshot(
   fromIdx: number,
   lastBarIndex: number,
   visibleBars: number,
+  totalBars?: number,
 ): { 
   firstClose: number; 
   lastClose: number; 
   high: number; 
   low: number; 
   points: number; 
+  totalPoints?: number;
   x?: number; 
   y?: number; 
   peakIndex?: number;
@@ -141,6 +143,7 @@ export function buildRollingSnapshot(
     high: lastBar.high,
     low: firstBar.low,
     points: Math.round(visibleBars),
+    totalPoints: totalBars,
     peakIndex,
     peakPrice: peakClose,
     peakTime: quotes[peakIndex]?.time,

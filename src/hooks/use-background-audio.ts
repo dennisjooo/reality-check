@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import type { ControlBus } from "@/lib/control-bus";
+import type { PriceSnapshot } from "@/lib/chart-types";
 
 interface UseBackgroundAudioOptions {
   phase: string;
@@ -9,9 +10,19 @@ interface UseBackgroundAudioOptions {
   speed: number;
   chartKey: number;
   controlBus: ControlBus;
+  priceSnapshot: PriceSnapshot | null;
+  volume: number;
 }
 
-export function useBackgroundAudio({ phase, memesEnabled, speed, chartKey, controlBus }: UseBackgroundAudioOptions) {
+export function useBackgroundAudio({
+  phase,
+  memesEnabled,
+  speed,
+  chartKey,
+  controlBus,
+  priceSnapshot,
+  volume,
+}: UseBackgroundAudioOptions) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasPlayedAudioRef = useRef(false);
 
@@ -53,7 +64,7 @@ export function useBackgroundAudio({ phase, memesEnabled, speed, chartKey, contr
     }
   }, [speed]);
 
-  // Play/pause based on phase and memesEnabled
+  // Play/pause and volume based on phase, memesEnabled, volume, and progress
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -64,12 +75,21 @@ export function useBackgroundAudio({ phase, memesEnabled, speed, chartKey, contr
         audio.currentTime = 0;
       }
 
-      audio.volume = 0.6;
+      let progress = 0;
+      if (priceSnapshot && priceSnapshot.totalPoints && priceSnapshot.totalPoints > 0) {
+        progress = priceSnapshot.points / priceSnapshot.totalPoints;
+      }
+      progress = Math.min(1, Math.max(0, progress));
+
+      // Base volume scales from 0.5 to 1.0 based on progress
+      const baseVol = 0.5 + 0.5 * progress;
+      audio.volume = Math.max(0, Math.min(1, baseVol * volume));
+
       if (audio.paused) {
         audio.play().catch((err) => console.log("Audio playback prevented:", err));
       }
     } else {
       if (!audio.paused) audio.pause();
     }
-  }, [phase, memesEnabled]);
+  }, [phase, memesEnabled, priceSnapshot?.points, priceSnapshot?.totalPoints, volume]);
 }

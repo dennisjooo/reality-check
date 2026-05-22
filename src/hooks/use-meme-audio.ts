@@ -9,12 +9,22 @@ export function useMemeAudio(
     negative: string[];
     positiveAudio: string[];
     negativeAudio: string[];
-  }>
+  }>,
+  volume: number = 1.0,
+  speed: number = 1.0
 ) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioFadeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioFadeDelayRef = useRef<NodeJS.Timeout | null>(null);
   const readyForNextRef = useRef<boolean>(true);
+
+  // Sync volume and speed if they change while audio is playing
+  useEffect(() => {
+    if (audioRef.current && !audioFadeTimerRef.current) {
+      audioRef.current.volume = Math.max(0, Math.min(1, 0.7 * volume));
+      audioRef.current.playbackRate = Math.max(0.25, Math.min(speed, 4.0));
+    }
+  }, [volume, speed]);
 
   const resetAudio = useCallback(() => {
     if (audioFadeDelayRef.current) {
@@ -58,11 +68,12 @@ export function useMemeAudio(
       }
 
       const audio = new Audio(audioPath);
-      audio.volume = 0.7;
+      audio.volume = Math.max(0, Math.min(1, 0.7 * volume));
+      audio.playbackRate = Math.max(0.25, Math.min(speed, 4.0));
       audio.play().catch((e) => console.log("Audio play prevented:", e));
       audioRef.current = audio;
     },
-    [memeFilesRef]
+    [memeFilesRef, volume, speed]
   );
 
   /**

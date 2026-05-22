@@ -70,6 +70,11 @@ export function useMemeTriggers(
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSpawnTimeRef = useRef<number>(0);
 
+  const playAudioRef = useRef(playAudio);
+  useEffect(() => {
+    playAudioRef.current = playAudio;
+  }, [playAudio]);
+
   const stopProcessing = useCallback(() => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
@@ -94,11 +99,11 @@ export function useMemeTriggers(
       const item = queueRef.current.shift()!;
       if (isAnchorTooClose(item.time, item.price)) return;
 
-      playAudio(item.type);
+      playAudioRef.current(item.type);
       spawnMeme(item.type, item.time, item.price, item.filename);
       lastSpawnTimeRef.current = Date.now();
     }, QUEUE_POLL_MS);
-  }, [isReadyForNext, isAnchorTooClose, playAudio, spawnMeme, stopProcessing]);
+  }, [isReadyForNext, isAnchorTooClose, spawnMeme, stopProcessing]);
 
   const resetTriggers = useCallback(() => {
     nextPosMilestoneRef.current = 3;

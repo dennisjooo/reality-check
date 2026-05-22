@@ -15,12 +15,13 @@ interface MemeOverlayProps {
   priceSnapshot: PriceSnapshot | null;
   phase: string;
   speed: number;
+  volume: number;
 }
 
 const MEME_LIFETIME_MS = 3000;
 const MEME_LOAD_TIMEOUT_MS = 2000;
 
-export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
+export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlayProps) {
   const [memes, setMemes] = useState<StickyMeme[]>([]);
   const [loadedMemeIds, setLoadedMemeIds] = useState<Set<number>>(new Set());
   const [zoomedMeme, setZoomedMeme] = useState<StickyMeme | null>(null);
@@ -36,7 +37,7 @@ export function MemeOverlay({ priceSnapshot, phase }: MemeOverlayProps) {
     negativeAudio: string[];
   }>({ positive: [], negative: [], positiveAudio: [], negativeAudio: [] });
 
-  const { playAudio, resetAudio, isReadyForNext } = useMemeAudio(phase, memeFilesRef);
+  const { playAudio, resetAudio, isReadyForNext } = useMemeAudio(phase, memeFilesRef, volume, speed);
 
   const startMemeLifetime = useCallback((id: number) => {
     if (lifetimeStartedRef.current.has(id)) return;
