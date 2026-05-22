@@ -134,7 +134,7 @@ export function useChartAnimation({
 
       onPhaseChange("complete");
     },
-    [cancelCurrentAnimationFrame, chartRef, onMilestoneChange, onPhaseChange, onPriceSnapshotChange, quotesRef, seriesRef]
+    [cancelCurrentAnimationFrame, onMilestoneChange, onPhaseChange, onPriceSnapshotChange, quotesRef, seriesRef]
   );
 
   const stepAnimation = useCallback(
@@ -198,7 +198,8 @@ export function useChartAnimation({
           if (seriesRef.current) {
             const timeScale = chart.timeScale();
             // Lightweight charts types sometimes need 'any' for time casting
-            const time = quotes[lastBarIndex].time as any;
+            const time = quotes[lastBarIndex]
+              .time as Parameters<typeof timeScale.timeToCoordinate>[0];
             const x = timeScale.timeToCoordinate(time);
             const y = seriesRef.current.priceToCoordinate(quotes[lastBarIndex].close);
             if (x !== null && y !== null) {

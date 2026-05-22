@@ -28,6 +28,7 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
   const memeLifetimeTimersRef = useRef<Set<NodeJS.Timeout>>(new Set());
   const lifetimeStartedRef = useRef<Set<number>>(new Set());
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  const [overlaySize, setOverlaySize] = useState({ width: 0, height: 0 });
   const prevPhaseRef = useRef(phase);
   const prevPointsRef = useRef<number | null>(null);
   const memeFilesRef = useRef<{
@@ -143,7 +144,9 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
   }, [resetAudio, resetTriggers]);
 
   useEffect(() => {
-    resetMemeState();
+    const resetTimer = setTimeout(() => {
+      resetMemeState();
+    }, 0);
     fetch("/api/memes")
       .then(res => res.json())
       .then(data => {
@@ -152,9 +155,27 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
       .catch(console.error);
 
     return () => {
+      clearTimeout(resetTimer);
       resetMemeState();
     };
   }, [resetMemeState]);
+
+  useEffect(() => {
+    const overlayEl = overlayRef.current;
+    if (!overlayEl) return;
+
+    const syncOverlaySize = () => {
+      setOverlaySize({
+        width: overlayEl.clientWidth,
+        height: overlayEl.clientHeight,
+      });
+    };
+
+    syncOverlaySize();
+    const resizeObserver = new ResizeObserver(syncOverlaySize);
+    resizeObserver.observe(overlayEl);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Clear memes on idle (symbol change) or when a fresh animation starts
   // (replay from complete / start from idle). Keep memes when resuming from pause.
@@ -194,16 +215,14 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
   }, []);
 
   const hasContent = memes.length > 0 && priceSnapshot?.getCoordinate;
-  const overlayWidth = overlayRef.current?.clientWidth ?? 0;
-  const overlayHeight = overlayRef.current?.clientHeight ?? 0;
   const renderedMemes: RenderedMeme[] =
-    hasContent && overlayWidth > 0
+    hasContent && overlaySize.width > 0
       ? memes
           .map(meme => {
             const geometry = getMemeGeometry(
               meme,
-              overlayWidth,
-              overlayHeight
+              overlaySize.width,
+              overlaySize.height
             );
             if (!geometry) return null;
             return { meme, ...geometry };

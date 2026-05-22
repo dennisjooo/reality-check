@@ -1,4 +1,3 @@
-import type { PriceSnapshot } from "./chart-types";
 import type { IChartApi } from "lightweight-charts";
 import { buildRollingSnapshot } from "./animation-math";
 
@@ -14,7 +13,9 @@ export function attachGetCoordinate(
   snapshot.lastLogicalIndex = lastLogicalIndex;
   snapshot.getCoordinate = (barTime: number, p: number) => {
     const ts = chart.timeScale();
-    const cx = ts.timeToCoordinate(barTime as any);
+    const cx = ts.timeToCoordinate(
+      barTime as Parameters<typeof ts.timeToCoordinate>[0]
+    );
     const cy = series.priceToCoordinate(p);
     if (cx !== null && cy !== null) return { x: cx, y: cy };
     return null;

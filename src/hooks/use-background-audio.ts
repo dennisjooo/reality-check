@@ -91,5 +91,5 @@ export function useBackgroundAudio({
     } else {
       if (!audio.paused) audio.pause();
     }
-  }, [phase, memesEnabled, priceSnapshot?.points, priceSnapshot?.totalPoints, volume]);
+  }, [phase, memesEnabled, priceSnapshot, volume]);
 }
