@@ -16,7 +16,7 @@ interface UseAssetSearchOptions {
   defaultValue?: string;
 }
 
-export function useAssetSearch({ onSelect, defaultValue }: UseAssetSearchOptions) {
+export function useAssetSearch({ onSelect }: UseAssetSearchOptions) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);

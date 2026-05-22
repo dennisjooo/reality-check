@@ -31,6 +31,7 @@ interface ZoomChartProps {
   targetMilestone?: number;
   onMilestoneChange?: (milestoneIndex: number) => void;
   onPriceSnapshotChange?: (snapshot: PriceSnapshot | null) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 export function ZoomChart({
@@ -48,6 +49,7 @@ export function ZoomChart({
   targetMilestone,
   onMilestoneChange,
   onPriceSnapshotChange,
+  onLoadingChange,
 }: ZoomChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -149,6 +151,10 @@ export function ZoomChart({
   }, [chartType, lineColor]);
 
   useChartTheme(chartRef);
+
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
 
   useEffect(() => {
     if (chartType !== "line" || !seriesRef.current) return;
