@@ -1,15 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
 import type { PriceSnapshot } from "@/lib/chart-types";
-import type { StickyMeme, RenderedMeme } from "@/lib/meme-geometry";
-import {
-  getMemeGeometry as calcMemeGeometry,
-  isAnchorTooClose as checkAnchorTooClose,
-} from "@/lib/meme-geometry";
+import type { StickyMeme } from "@/lib/meme";
+import { isAnchorTooClose as checkAnchorTooClose } from "@/lib/meme";
 import { useMemeAudio } from "@/hooks/use-meme-audio";
 import { useMemeTriggers } from "@/hooks/use-meme-triggers";
+import { MemeLightbox, MemeRenderer, useMemeLifecycle } from "@/components/meme";
 
 interface MemeOverlayProps {
   priceSnapshot: PriceSnapshot | null;
@@ -18,17 +15,10 @@ interface MemeOverlayProps {
   volume: number;
 }
 
-const MEME_LIFETIME_MS = 3000;
-const MEME_LOAD_TIMEOUT_MS = 2000;
-
 export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlayProps) {
-  const [memes, setMemes] = useState<StickyMeme[]>([]);
-  const [loadedMemeIds, setLoadedMemeIds] = useState<Set<number>>(new Set());
   const [zoomedMeme, setZoomedMeme] = useState<StickyMeme | null>(null);
-  const memeLifetimeTimersRef = useRef<Set<NodeJS.Timeout>>(new Set());
-  const lifetimeStartedRef = useRef<Set<number>>(new Set());
-  const overlayRef = useRef<HTMLDivElement | null>(null);
   const [overlaySize, setOverlaySize] = useState({ width: 0, height: 0 });
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const prevPhaseRef = useRef(phase);
   const prevPointsRef = useRef<number | null>(null);
   const memeFilesRef = useRef<{
@@ -38,72 +28,8 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
     negativeAudio: string[];
   }>({ positive: [], negative: [], positiveAudio: [], negativeAudio: [] });
 
+  const { memes, loadedMemeIds, spawnMeme, handleImageLoad, clearAll } = useMemeLifecycle();
   const { playAudio, resetAudio, isReadyForNext } = useMemeAudio(phase, memeFilesRef, volume, speed);
-
-  const startMemeLifetime = useCallback((id: number) => {
-    if (lifetimeStartedRef.current.has(id)) return;
-    lifetimeStartedRef.current.add(id);
-
-    const lifetimeTimer = setTimeout(() => {
-      setMemes(prev => prev.filter(m => m.id !== id));
-      setLoadedMemeIds(prev => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      memeLifetimeTimersRef.current.delete(lifetimeTimer);
-    }, MEME_LIFETIME_MS);
-    memeLifetimeTimersRef.current.add(lifetimeTimer);
-  }, []);
-
-  const spawnMeme = useCallback(
-    (
-      type: "positive" | "negative",
-      targetTime: number,
-      targetPrice: number,
-      filename: string
-    ) => {
-      const id = Date.now() + Math.floor(Math.random() * 1000);
-      const newMeme: StickyMeme = {
-        type,
-        id,
-        triggerTime: targetTime,
-        triggerPrice: targetPrice,
-        filename,
-      };
-      setMemes(prev => [...prev, newMeme]);
-
-      // Fallback: start lifetime even if image never loads
-      const fallbackTimer = setTimeout(() => {
-        startMemeLifetime(id);
-      }, MEME_LOAD_TIMEOUT_MS);
-      memeLifetimeTimersRef.current.add(fallbackTimer);
-    },
-    [startMemeLifetime]
-  );
-
-  const handleImageLoad = useCallback((memeId: number) => {
-    setLoadedMemeIds(prev => {
-      const next = new Set(prev);
-      next.add(memeId);
-      return next;
-    });
-    startMemeLifetime(memeId);
-  }, [startMemeLifetime]);
-
-  const getMemeGeometry = useCallback(
-    (meme: StickyMeme, overlayWidth: number, overlayHeight: number) => {
-      if (!priceSnapshot?.getCoordinate) return null;
-      return calcMemeGeometry(
-        meme,
-        overlayWidth,
-        overlayHeight,
-        priceSnapshot.getCoordinate,
-        speed
-      );
-    },
-    [priceSnapshot, speed]
-  );
 
   const isAnchorTooClose = useCallback(
     (targetTime: number, targetPrice: number) => {
@@ -131,17 +57,11 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
   );
 
   const resetMemeState = useCallback(() => {
-    for (const timer of memeLifetimeTimersRef.current) {
-      clearTimeout(timer);
-    }
-    memeLifetimeTimersRef.current.clear();
-    lifetimeStartedRef.current.clear();
-    setMemes([]);
-    setLoadedMemeIds(new Set());
+    clearAll();
     setZoomedMeme(null);
     resetAudio();
     resetTriggers();
-  }, [resetAudio, resetTriggers]);
+  }, [clearAll, resetAudio, resetTriggers]);
 
   useEffect(() => {
     const resetTimer = setTimeout(() => {
@@ -177,8 +97,6 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Clear memes on idle (symbol change) or when a fresh animation starts
-  // (replay from complete / start from idle). Keep memes when resuming from pause.
   useEffect(() => {
     const prev = prevPhaseRef.current;
     prevPhaseRef.current = phase;
@@ -193,8 +111,6 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
     }
   }, [phase, resetMemeState]);
 
-  // Restart/play-from-beginning keeps phase as "animating" but drops points sharply.
-  // Use that signature to wipe prior run memes reliably.
   useEffect(() => {
     const currentPoints = priceSnapshot?.points;
     if (!currentPoints) return;
@@ -214,126 +130,26 @@ export function MemeOverlay({ priceSnapshot, phase, speed, volume }: MemeOverlay
     setZoomedMeme(null);
   }, []);
 
-  const hasContent = memes.length > 0 && priceSnapshot?.getCoordinate;
-  const renderedMemes: RenderedMeme[] =
-    hasContent && overlaySize.width > 0
-      ? memes
-          .map(meme => {
-            const geometry = getMemeGeometry(
-              meme,
-              overlaySize.width,
-              overlaySize.height
-            );
-            if (!geometry) return null;
-            return { meme, ...geometry };
-          })
-          .filter((item): item is RenderedMeme => item !== null)
-      : [];
-
   return (
     <>
       <div
         ref={overlayRef}
         className="pointer-events-none absolute inset-0 z-20 overflow-hidden"
       >
-        <svg className="absolute inset-0 h-full w-full pointer-events-none z-10">
-          {renderedMemes.map(
-            ({
-              meme,
-              showLine,
-              lineStartX,
-              lineStartY,
-              targetX,
-              targetY,
-            }) => {
-              if (!showLine) return null;
-
-              return (
-                <line
-                  key={`line-${meme.id}`}
-                  x1={lineStartX}
-                  y1={lineStartY}
-                  x2={targetX}
-                  y2={targetY}
-                  stroke={
-                    meme.type === "positive" ? "#34d399" : "#f87171"
-                  }
-                  strokeWidth="2"
-                  strokeDasharray="6,4"
-                  className="opacity-60"
-                />
-              );
-            }
-          )}
-        </svg>
-
-        {renderedMemes.map(({ meme, imgLeft, imgTop }) => {
-          const isLoaded = loadedMemeIds.has(meme.id);
-          return (
-            <div
-              key={meme.id}
-              className={`absolute pointer-events-auto cursor-pointer drop-shadow-lg z-20 transition-[opacity,transform] duration-300 hover:scale-110 hover:z-30 ${
-                isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-75"
-              }`}
-              style={{
-                left: imgLeft,
-                top: imgTop,
-                width: 80,
-                height: 80,
-              }}
-              onClick={e => {
-                e.stopPropagation();
-                handleMemeClick(meme);
-              }}
-              title="Click to zoom"
-            >
-              <img
-                src={`/img/${meme.type === "positive" ? "positive" : "negative"}/${meme.filename}`}
-                alt={`${meme.type} meme`}
-                className="h-20 w-20 object-contain rounded-md"
-                draggable={false}
-                onLoad={() => handleImageLoad(meme.id)}
-              />
-            </div>
-          );
-        })}
+        <MemeRenderer
+          memes={memes}
+          loadedMemeIds={loadedMemeIds}
+          priceSnapshot={priceSnapshot}
+          overlaySize={overlaySize}
+          speed={speed}
+          onMemeClick={handleMemeClick}
+          onImageLoad={handleImageLoad}
+        />
       </div>
 
-      {/* Lightbox overlay — rendered via portal so it escapes overflow-hidden */}
-      {zoomedMeme &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm cursor-pointer"
-            onClick={e => {
-              e.stopPropagation();
-              closeLightbox();
-            }}
-          >
-            <div
-              className="relative animate-in zoom-in fade-in duration-200"
-              onClick={e => e.stopPropagation()}
-            >
-              <img
-                src={`/img/${zoomedMeme.type === "positive" ? "positive" : "negative"}/${zoomedMeme.filename}`}
-                alt={`${zoomedMeme.type} meme zoomed`}
-                className="max-h-[70vh] max-w-[70vw] object-contain rounded-xl shadow-2xl"
-                draggable={false}
-              />
-              <button
-                className="absolute -top-3 -right-3 bg-foreground/80 text-background rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold hover:bg-foreground transition-colors cursor-pointer"
-                onClick={e => {
-                  e.stopPropagation();
-                  closeLightbox();
-                }}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-          </div>,
-          document.body
-        )}
+      {zoomedMeme && (
+        <MemeLightbox meme={zoomedMeme} onClose={closeLightbox} />
+      )}
     </>
   );
 }
