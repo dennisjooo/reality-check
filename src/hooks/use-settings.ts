@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { ChartType, ChartInterval } from "@/lib/chart-types";
+import { resolveAssetMeta } from "@/lib/asset-meta";
 import {
   LS_KEY,
   DEFAULT_SYMBOL,
@@ -49,10 +50,10 @@ export interface SettingsOverrides {
 
 export function useSettings(overrides?: SettingsOverrides) {
   const saved = loadSettings();
+  const effectiveSymbol = overrides?.symbol ?? saved.symbol ?? DEFAULT_SYMBOL;
+  const savedMetaMatches = saved.symbol === effectiveSymbol;
 
-  const [symbol, setSymbol] = useState(
-    overrides?.symbol ?? saved.symbol ?? DEFAULT_SYMBOL
-  );
+  const [symbol, setSymbol] = useState(effectiveSymbol);
   const [speed, setSpeed] = useState(() =>
     clampSpeed(overrides?.speed ?? saved.speed ?? DEFAULT_SPEED)
   );
@@ -77,20 +78,46 @@ export function useSettings(overrides?: SettingsOverrides) {
   const [volume, setVolume] = useState<number>(
     overrides?.volume ?? saved.volume ?? 1.0
   );
-  const isDefault = (overrides?.symbol ?? saved.symbol ?? DEFAULT_SYMBOL) === DEFAULT_SYMBOL;
-  const [assetName, setAssetName] = useState<string | undefined>(
-    saved.assetName ?? (isDefault ? DEFAULT_ASSET_META.name : undefined)
-  );
-  const [assetType, setAssetType] = useState<string | undefined>(
-    saved.assetType ?? (isDefault ? DEFAULT_ASSET_META.type : undefined)
-  );
-  const [exchange, setExchange] = useState<string | undefined>(
-    saved.exchange ?? (isDefault ? DEFAULT_ASSET_META.exchange : undefined)
-  );
+  const isDefault = effectiveSymbol === DEFAULT_SYMBOL;
+  const [assetName, setAssetName] = useState<string | undefined>(() => {
+    if (savedMetaMatches && saved.assetName) return saved.assetName;
+    return isDefault ? DEFAULT_ASSET_META.name : undefined;
+  });
+  const [assetType, setAssetType] = useState<string | undefined>(() => {
+    if (savedMetaMatches && saved.assetType) return saved.assetType;
+    return isDefault ? DEFAULT_ASSET_META.type : undefined;
+  });
+  const [exchange, setExchange] = useState<string | undefined>(() => {
+    if (savedMetaMatches && saved.exchange) return saved.exchange;
+    return isDefault ? DEFAULT_ASSET_META.exchange : undefined;
+  });
 
   useEffect(() => {
     saveSettings({ speed, chartType, lineColor, interval, fromDate, toDate, memesEnabled, volume });
   }, [speed, chartType, lineColor, interval, fromDate, toDate, memesEnabled, volume]);
+
+  useEffect(() => {
+    if (isDefault) return;
+    if (savedMetaMatches && saved.assetName) return;
+
+    let cancelled = false;
+    resolveAssetMeta(effectiveSymbol).then((meta) => {
+      if (cancelled || !meta) return;
+      setAssetName(meta.name);
+      setAssetType(meta.type);
+      setExchange(meta.exchange);
+      saveSettings({
+        symbol: effectiveSymbol,
+        assetName: meta.name,
+        assetType: meta.type,
+        exchange: meta.exchange,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveSymbol, isDefault, savedMetaMatches, saved.assetName]);
 
   const updateSymbol = useCallback(
     (newSymbol: string, meta?: { name?: string; type?: string; exchange?: string }) => {
