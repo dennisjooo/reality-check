@@ -146,22 +146,24 @@ export function SettingsModal({
                 />
               </label>
 
-              <div className="flex flex-col gap-2 py-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground/90">Master Volume</span>
-                  <span className="text-xs text-muted-foreground">{Math.round(volume * 100)}%</span>
+              {memesEnabled && (
+                <div className="flex flex-col gap-2 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground/90">Master Volume</span>
+                    <span className="text-xs text-muted-foreground">{Math.round(volume * 100)}%</span>
+                  </div>
+                  <Slider
+                    value={[volume * 100]}
+                    min={0}
+                    max={100}
+                    step={1}
+                    onValueChange={(vals: number | readonly number[]) => {
+                      const val = Array.isArray(vals) ? vals[0] : (vals as number);
+                      onVolumeChange(val / 100);
+                    }}
+                  />
                 </div>
-                <Slider
-                  value={[volume * 100]}
-                  min={0}
-                  max={100}
-                  step={1}
-                  onValueChange={(vals: number | readonly number[]) => {
-                    const val = Array.isArray(vals) ? vals[0] : (vals as number);
-                    onVolumeChange(val / 100);
-                  }}
-                />
-              </div>
+              )}
             </div>
           </div>
         </div>
