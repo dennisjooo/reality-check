@@ -31,7 +31,7 @@ export function Header({
   return (
     <header className="px-1 py-2">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-end gap-1.5 shrink-0">
           <h1 className="text-lg sm:text-xl font-heading italic tracking-tight text-foreground/75">
             Reality Check
           </h1>
@@ -39,7 +39,7 @@ export function Header({
             href="https://dennisjooo.vercel.app"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[10px] sm:text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            className="pb-0.5 text-[10px] sm:text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
           >
             by dennisjooo
           </a>
