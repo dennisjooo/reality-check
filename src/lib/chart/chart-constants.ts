@@ -13,6 +13,8 @@ export const DEFAULT_ASSET_META = {
   exchange: "CCC",
 } as const;
 export const DEFAULT_SPEED = 1;
+export const SPEED_MIN = 0.25;
+export const SPEED_MAX = 5;
 export const DEFAULT_LINE_COLOR = "#3b82f6";
 export const DEFAULT_INTERVAL: ChartInterval = "1d";
 

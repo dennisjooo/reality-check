@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { audioPlaybackRate } from "@/lib/chart-constants";
 
 function pickRandomNonRepeating(
   items: string[],
@@ -42,7 +43,7 @@ export function useMemeAudio(
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = Math.max(0, Math.min(1, 0.7 * volume));
-      audioRef.current.playbackRate = Math.max(0.25, Math.min(speed, 4.0));
+      audioRef.current.playbackRate = audioPlaybackRate(speed);
     }
   }, [volume, speed]);
 
@@ -81,7 +82,7 @@ export function useMemeAudio(
 
       const audio = new Audio(audioPath);
       audio.volume = Math.max(0, Math.min(1, 0.7 * volume));
-      audio.playbackRate = Math.max(0.25, Math.min(speed, 4.0));
+      audio.playbackRate = audioPlaybackRate(speed);
       audio.addEventListener("ended", () => {
         readyForNextRef.current = true;
       });

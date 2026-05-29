@@ -1,3 +1,5 @@
+import { memeFastFactor } from "@/lib/chart-constants";
+
 export interface StickyMeme {
   type: "positive" | "negative";
   id: number;
@@ -37,7 +39,7 @@ export function getMemeGeometry(
 
   const targetX = coords.x;
   const targetY = coords.y;
-  const speedFactor = Math.max(0, Math.min((speed - 1) / 3, 1));
+  const speedFactor = memeFastFactor(speed);
   const offscreenMargin = 12;
   if (
     targetX < -offscreenMargin ||

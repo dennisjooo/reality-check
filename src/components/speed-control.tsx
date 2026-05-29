@@ -2,6 +2,11 @@
 
 import { useRef } from "react";
 import type { AnimPhase } from "@/lib/chart-types";
+import {
+  formatSpeed,
+  sliderToSpeed,
+  speedToSlider,
+} from "@/lib/chart-constants";
 
 interface SpeedControlProps {
   speed: number;
@@ -21,6 +26,7 @@ export function SpeedControl({
   onPhaseChange,
 }: SpeedControlProps) {
   const speedBeforeDragRef = useRef(speed);
+  const sliderPos = Math.round(speedToSlider(speed));
 
   return (
     <div className="flex items-center justify-between md:justify-start gap-3 w-full md:w-auto">
@@ -34,12 +40,12 @@ export function SpeedControl({
         <input
           id="speed-slider"
           type="range"
-          min={0.5}
-          max={5}
-          step={0.5}
-          value={speed}
+          min={0}
+          max={100}
+          step={1}
+          value={sliderPos}
           onChange={(e) => {
-            const newSpeed = Number(e.target.value);
+            const newSpeed = sliderToSpeed(Number(e.target.value));
             onSpeedChange(newSpeed);
             speedRef.current = newSpeed;
           }}
@@ -57,8 +63,8 @@ export function SpeedControl({
           }}
           className="w-24 sm:w-32 h-1.5 accent-primary cursor-pointer"
         />
-        <span className="text-sm text-muted-foreground tabular-nums w-6">
-          {speed}x
+        <span className="text-sm text-muted-foreground tabular-nums w-10">
+          {formatSpeed(speed)}
         </span>
       </div>
     </div>

@@ -9,9 +9,12 @@ import {
   pickRandomNonRepeating,
   getDynamicCooldownMs,
   pickMagneticAnchor,
-  clamp,
   MEME_CONSTANTS,
 } from "@/lib/meme/meme-trigger-math";
+import {
+  memeRecentWindowStart,
+  memeSpawnCooldownMs,
+} from "@/lib/chart-constants";
 
 const { QUEUE_POLL_MS, MAX_QUEUE_SIZE } = MEME_CONSTANTS;
 
@@ -58,6 +61,11 @@ export function useMemeTriggers(
     positive: string | null;
     negative: string | null;
   }>({ positive: null, negative: null });
+  const speedRef = useRef(speed);
+
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
 
   const playAudioRef = useRef(playAudio);
   useEffect(() => {
@@ -83,7 +91,11 @@ export function useMemeTriggers(
         return;
       }
       if (!isReadyForNext()) return;
-      if (Date.now() - lastSpawnTimeRef.current < dynamicCooldownMsRef.current) return;
+      const cooldown = memeSpawnCooldownMs(
+        dynamicCooldownMsRef.current,
+        speedRef.current
+      );
+      if (Date.now() - lastSpawnTimeRef.current < cooldown) return;
 
       const item = queueRef.current.shift()!;
       if (isAnchorTooClose(item.time, item.price)) return;
@@ -132,8 +144,7 @@ export function useMemeTriggers(
 
     const leftEdge =
       (priceSnapshot.lastLogicalIndex ?? 0) - priceSnapshot.points + 1;
-    const speedFactor = clamp((speed - 1) / 3, 0, 1);
-    const recentWindowStartFrac = 0.4 + speedFactor * 0.35;
+    const recentWindowStartFrac = memeRecentWindowStart(speed);
     const recentWindowMinIndex =
       leftEdge + priceSnapshot.points * recentWindowStartFrac;
     const minAnchorIndex = Math.max(

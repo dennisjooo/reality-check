@@ -9,6 +9,7 @@ import {
   DEFAULT_SPEED,
   DEFAULT_LINE_COLOR,
   DEFAULT_INTERVAL,
+  clampSpeed,
   type PersistedSettings,
 } from "@/lib/chart-constants";
 
@@ -52,8 +53,8 @@ export function useSettings(overrides?: SettingsOverrides) {
   const [symbol, setSymbol] = useState(
     overrides?.symbol ?? saved.symbol ?? DEFAULT_SYMBOL
   );
-  const [speed, setSpeed] = useState(
-    overrides?.speed ?? saved.speed ?? DEFAULT_SPEED
+  const [speed, setSpeed] = useState(() =>
+    clampSpeed(overrides?.speed ?? saved.speed ?? DEFAULT_SPEED)
   );
   const [chartType, setChartType] = useState<ChartType>(
     overrides?.chartType ?? saved.chartType ?? "candlestick"

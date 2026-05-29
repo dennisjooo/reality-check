@@ -1,6 +1,7 @@
 import type { ChartInterval } from "@/lib/chart-types";
 import type { SettingsOverrides } from "@/hooks/use-settings";
 import { VALID_SYMBOL_RE } from "@/lib/api-validation";
+import { SPEED_MIN, SPEED_MAX } from "@/lib/chart-constants";
 
 /**
  * Parse URL search params into settings overrides for deep-linking.
@@ -14,7 +15,7 @@ export function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverri
   const speed = searchParams.get("speed");
   if (speed) {
     const n = Number(speed);
-    if (!isNaN(n) && n >= 1 && n <= 10) overrides.speed = n;
+    if (!isNaN(n) && n >= SPEED_MIN && n <= SPEED_MAX) overrides.speed = n;
   }
 
   const type = searchParams.get("type");

@@ -3,6 +3,7 @@
 import { useRef, useEffect } from "react";
 import type { ControlBus } from "@/lib/control-bus";
 import type { PriceSnapshot } from "@/lib/chart-types";
+import { audioPlaybackRate } from "@/lib/chart-constants";
 
 interface UseBackgroundAudioOptions {
   phase: string;
@@ -60,7 +61,7 @@ export function useBackgroundAudio({
   // Sync playback rate with speed
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.playbackRate = Math.max(0.25, Math.min(speed, 4.0));
+      audioRef.current.playbackRate = audioPlaybackRate(speed);
     }
   }, [speed]);
 
