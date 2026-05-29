@@ -57,6 +57,7 @@ function HomeContent() {
   const [chartKey, setChartKey] = useState(0);
   const [phase, setPhase] = useState<AnimPhase>("idle");
   const [isChartLoading, setIsChartLoading] = useState(true);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [priceSnapshot, setPriceSnapshot] = useState<PriceSnapshot | null>(null);
   const speedRef = useRef(speed);
@@ -91,6 +92,7 @@ function HomeContent() {
       setChartKey((k) => k + 1);
       setPhase("idle");
       setIsChartLoading(true);
+      setChartError(null);
     },
     [updateSymbol]
   );
@@ -103,6 +105,7 @@ function HomeContent() {
       setPhase("idle");
       setPriceSnapshot(null);
       setIsChartLoading(true);
+      setChartError(null);
     },
     [updateFromDate, updateToDate]
   );
@@ -144,13 +147,14 @@ function HomeContent() {
               targetMilestone={undefined}
               onPriceSnapshotChange={setPriceSnapshot}
               onLoadingChange={setIsChartLoading}
+              onChartErrorChange={setChartError}
             />
           </ChartErrorBoundary>
           {memesEnabled && (
             <MemeOverlay priceSnapshot={priceSnapshot} phase={phase} speed={speed} volume={volume} />
           )}
           <CompletionOverlay visible={phase === "complete"} />
-          {phase === "idle" && !isChartLoading && (
+          {phase === "idle" && !isChartLoading && !chartError && (
             <StartOverlay
               onStart={() => {
                 controlBus.continue();

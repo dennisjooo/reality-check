@@ -80,17 +80,6 @@ export function useAssetSearch({ onSelect }: UseAssetSearchOptions) {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && results.length === 0 && query.trim()) {
-        setIsOpen(false);
-        onSelect(query.trim().toUpperCase());
-        setQuery("");
-      }
-    },
-    [results, query, onSelect],
-  );
-
   return {
     query,
     results,
@@ -99,6 +88,5 @@ export function useAssetSearch({ onSelect }: UseAssetSearchOptions) {
     setIsOpen,
     handleInputChange,
     handleSelect,
-    handleKeyDown,
   };
 }

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import YahooFinance from "yahoo-finance2";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 import { VALID_SYMBOL_RE, VALID_INTERVALS, KNOWN_PARAMS, INTERVAL_MAX_DAYS } from "@/lib/api-validation";
 import { parseDateParam, rangeToPeriod1 } from "@/lib/date-utils";
-
-const yahooFinance = new YahooFinance();
+import { yahooFinance } from "@/lib/yahoo-finance-client";
 
 // --- Rate Limiter ---
 const rateLimiter = createRateLimiter({

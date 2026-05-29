@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import YahooFinance from "yahoo-finance2";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
-
-const yahooFinance = new YahooFinance();
+import {
+  yahooFinance,
+  YAHOO_NO_VALIDATE,
+  mapSearchQuotes,
+} from "@/lib/yahoo-finance-client";
 
 // --- Rate Limiter ---
 const rateLimiter = createRateLimiter({
@@ -62,31 +64,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await yahooFinance.search(query);
-    const results = result.quotes
-      .filter(
-        (q) =>
-          q.quoteType === "EQUITY" ||
-          q.quoteType === "CRYPTOCURRENCY" ||
-          q.quoteType === "ETF" ||
-          q.quoteType === "CURRENCY"
-      )
-      .slice(0, 10)
-      .map((q) => ({
-        symbol: q.symbol,
-        name: q.shortname ?? q.longname ?? q.symbol,
-        type: q.quoteType,
-        exchange: q.exchange,
-      }));
+    const result = await yahooFinance.search(query, {}, YAHOO_NO_VALIDATE);
+    const results = mapSearchQuotes(result);
 
     const res = NextResponse.json({ results });
     setRateLimitHeaders(res, rateResult);
     res.headers.set("Cache-Control", "no-store");
     return res;
   } catch (error) {
-    // Log details server-side only — never expose to client
+    // Yahoo schema validation can still throw; use raw result when present
+    const fallback = mapSearchQuotes(
+      error instanceof Error && "result" in error
+        ? (error as { result: unknown }).result
+        : null
+    );
+    if (fallback.length > 0) {
+      const res = NextResponse.json({ results: fallback });
+      setRateLimitHeaders(res, rateResult);
+      res.headers.set("Cache-Control", "no-store");
+      return res;
+    }
+
     console.error("Search failed for query:", query, error);
-    const res = NextResponse.json({ results: [] }, { status: 500 });
+    const res = NextResponse.json({ results: [] });
     setRateLimitHeaders(res, rateResult);
     return res;
   }

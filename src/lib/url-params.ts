@@ -1,5 +1,6 @@
 import type { ChartInterval } from "@/lib/chart-types";
 import type { SettingsOverrides } from "@/hooks/use-settings";
+import { VALID_SYMBOL_RE } from "@/lib/api-validation";
 
 /**
  * Parse URL search params into settings overrides for deep-linking.
@@ -7,8 +8,8 @@ import type { SettingsOverrides } from "@/hooks/use-settings";
 export function parseUrlOverrides(searchParams: URLSearchParams): SettingsOverrides {
   const overrides: SettingsOverrides = {};
 
-  const q = searchParams.get("q");
-  if (q) overrides.symbol = q;
+  const q = searchParams.get("q")?.trim();
+  if (q && VALID_SYMBOL_RE.test(q)) overrides.symbol = q;
 
   const speed = searchParams.get("speed");
   if (speed) {

@@ -47,7 +47,6 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
       setIsOpen,
       handleInputChange,
       handleSelect,
-      handleKeyDown,
     } = useAssetSearch({ onSelect, defaultValue });
 
     return (
@@ -71,7 +70,7 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
           )}
         </Button>
         <CommandDialog open={isOpen} onOpenChange={setIsOpen}>
-          <Command shouldFilter={false} onKeyDown={handleKeyDown}>
+          <Command shouldFilter={false}>
             <CommandInput
               placeholder="Search asset (e.g. AAPL, BTC-USD)..."
               value={query}
@@ -104,7 +103,9 @@ export const AssetSearch = forwardRef<HTMLButtonElement, AssetSearchProps>(
                 </CommandGroup>
               )}
               {!loading && results.length === 0 && query.trim().length > 0 && (
-                <CommandEmpty>No results found.</CommandEmpty>
+                <CommandEmpty>
+                  No results found. Pick a symbol from the list to continue.
+                </CommandEmpty>
               )}
               {results.length > 0 && (
                 <CommandGroup>
