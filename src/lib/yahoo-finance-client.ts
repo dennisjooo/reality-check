@@ -12,6 +12,7 @@ const ALLOWED_QUOTE_TYPES = new Set([
   "CRYPTOCURRENCY",
   "ETF",
   "CURRENCY",
+  "INDEX",
 ]);
 
 type RawSearchQuote = {
